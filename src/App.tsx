@@ -168,7 +168,12 @@ export default function App() {
   const [expandedSkill, setExpandedSkill] = useState<string | null>(null);
 
   useEffect(() => {
+    const authTimeout = setTimeout(() => {
+      setIsAuthLoading(false);
+    }, 6000); // 6s fallback
+
     const unsubscribe = onAuthStateChanged(auth, (u) => {
+      clearTimeout(authTimeout);
       setUser(u);
       setIsAuthLoading(false);
       
@@ -185,7 +190,11 @@ export default function App() {
         setHistory([]);
       }
     });
-    return () => unsubscribe();
+
+    return () => {
+      unsubscribe();
+      clearTimeout(authTimeout);
+    };
   }, []);
 
   useEffect(() => {

@@ -1,9 +1,11 @@
 import * as pdfjs from 'pdfjs-dist';
 
-// Set worker source
-pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
-
 export async function extractTextFromPdf(file: File, onProgress?: (percent: number, currentPage: number, totalPages: number) => void): Promise<string> {
+  // Set worker source lazily
+  if (!pdfjs.GlobalWorkerOptions.workerSrc) {
+    pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+  }
+  
   const arrayBuffer = await file.arrayBuffer();
   const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
   const pdf = await loadingTask.promise;

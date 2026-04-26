@@ -189,22 +189,29 @@ ARCHITECTURE
 
 
 -----------
-IMAGES
+IMAGES OF PROJECT
 -----------
 
 
 
 <img width="1913" height="898" alt="image" src="https://github.com/user-attachments/assets/f18bd165-8b62-4279-a787-d831dddae931" />
+<br>
 
 <img width="1915" height="872" alt="image" src="https://github.com/user-attachments/assets/020aaa90-783a-4603-9901-8566ef9bab86" />
-
+<br>
 
 <img width="1912" height="901" alt="image" src="https://github.com/user-attachments/assets/33ed4f4a-bcc0-423b-9a60-99b53ba609f0" />
+<br>
 <img width="1907" height="896" alt="image" src="https://github.com/user-attachments/assets/1abbd750-c0a1-49c5-aceb-7696e256de8a" />
-
+<br>
 <img width="1902" height="891" alt="image" src="https://github.com/user-attachments/assets/c9eacc0a-e340-4d79-8c00-39a4bd06a57e" />
+<br>
 <img width="1911" height="902" alt="image" src="https://github.com/user-attachments/assets/972c0f9c-443f-4251-ba83-a73a5467d9b2" />
+<br>
 <img width="1888" height="797" alt="image" src="https://github.com/user-attachments/assets/f299e77e-312b-404e-bd34-372de671f3c0" />
-
+<br>
 <img width="1867" height="862" alt="image" src="https://github.com/user-attachments/assets/f94eb306-ca29-40b7-b0e8-a44eb146ff65" />
+<br>
 <img width="1910" height="890" alt="image" src="https://github.com/user-attachments/assets/55109f55-0a61-4af3-a0f6-5daf6926d182" />
+<br>
+

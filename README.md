@@ -111,6 +111,35 @@ Learning Path Generator
 
 ---
 
+🧮 Scoring Logic
+
+Talent Hack AI evaluates candidate proficiency by comparing resume content with job requirements using a structured, AI-assisted scoring pipeline.
+
+⚙️ How It Works
+Skill Extraction
+Extracts required skills from the Job Description
+Extracts candidate skills from the Resume
+Skill Matching
+Matches overlapping skills between Resume and Job Description
+Identifies missing or weak skills
+Weighted Scoring
+Each skill is evaluated based on:
+📌 Relevance Weight (importance in job description)
+📊 Proficiency Level (based on experience/projects/context)
+🔁 Frequency (how often the skill appears in resume)
+Score Calculation
+
+Final score is computed as:
+
+Skill Score = (Matched Skills / Total Required Skills) × 100
+
+Enhanced with AI-based adjustments:
+
+Context understanding (projects, experience)
+Semantic similarity (not just keyword match)
+Strength vs weakness detection
+
+
 ## ⚙️ Tech Stack
 
 ### Frontend

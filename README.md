@@ -41,6 +41,13 @@ Talent Hack AI introduces a **Neural Protocol Engine** that:
 
 ---
 
+
+##🌐 Live Demo
+
+Experience the application in action:
+
+👉 Talent Hack AI: https://talenthack.netlify.app/
+
 ## ✨ Key Features
 
 ### 🤖 AI Skill Validation

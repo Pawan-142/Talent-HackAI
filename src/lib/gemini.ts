@@ -99,7 +99,7 @@ export async function analyzeCareer(jd: string, resume: string): Promise<{ skill
 export async function chatWithAgent(messages: {role: 'user' | 'assistant', content: string}[], skills: Skill[], plan: LearningStep[]) {
   const response = await ai.models.generateContent({
     model: MODEL_NAME,
-    contents: `You are Catalyst AI, a career growth agent. Help the candidate prepare for their role. 
+    contents: `You are Talent Hack, a career growth agent. Help the candidate prepare for their role. 
     
     CONTEXTUAL DATA:
     1. Proficiency Map: ${JSON.stringify(skills)}

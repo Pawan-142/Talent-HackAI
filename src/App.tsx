@@ -527,7 +527,7 @@ export default function App() {
       y += 6;
     });
 
-    doc.save(`CATALYST_AI_Report_${assessment.id?.substring(0, 8)}.pdf`);
+    doc.save(`TALENT_HACK_Report_${assessment.id?.substring(0, 8)}.pdf`);
   };
 
   const handleReset = () => {
@@ -591,11 +591,11 @@ export default function App() {
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-accent/20 flex items-center justify-center border border-accent/20 shadow-[0_0_15px_rgba(var(--accent-rgb),0.2)]">
-              <BrainCircuit className="w-5 h-5 accent-text" />
+              <BrainCircuit className="w-5 h-5 text-accent" />
             </div>
             <div>
               <p className="text-[10px] tracking-[0.3em] uppercase opacity-40 font-bold">Neural Protocol / v0.9.4</p>
-              <h1 className="text-2xl font-black tracking-tight text-white flex items-center gap-1">CATALYST<span className="opacity-20">_</span>AI</h1>
+              <h1 className="text-2xl font-black tracking-tight text-primary flex items-center gap-1 uppercase">Talent Hack<span className="opacity-20">_</span>AI</h1>
             </div>
           </div>
         </div>
@@ -640,7 +640,7 @@ export default function App() {
               disabled={isSigningIn}
               className={`px-6 py-2 rounded-lg flex items-center gap-2 font-bold text-xs uppercase tracking-widest transition-all ${
                 isSigningIn 
-                  ? 'bg-white/10 text-white/20 cursor-wait' 
+                  ? 'bg-subtle text-dim cursor-wait' 
                   : 'bg-white text-black hover:bg-accent'
               }`}
             >
@@ -696,7 +696,7 @@ export default function App() {
                 ))}
                 
                 {history.length === 0 && (
-                  <div className="text-center py-20 opacity-30">
+                  <div className="text-center py-20 opacity-30 text-dim">
                     <History className="w-12 h-12 mx-auto mb-4" />
                     <p className="text-xs uppercase tracking-widest font-bold">No history found</p>
                   </div>
@@ -731,15 +731,15 @@ export default function App() {
                   className="inline-flex items-center gap-2 px-3 py-1 bg-accent/10 border border-accent/20 rounded-full"
                 >
                   <span className="w-2 h-2 bg-accent rounded-full animate-pulse shadow-[0_0_8px_var(--accent)]" />
-                  <p className="text-[10px] uppercase tracking-widest text-accent font-black">Neural Cognitive Core Active</p>
+                  <p className="text-[10px] uppercase tracking-widest text-accent font-black">AI Assessment Ready</p>
                 </motion.div>
                 
                 <h2 className="huge-display accent-glow text-primary">
-                  Map Your <span className="text-accent">Neural</span> Proficiency.
+                  Assess Your Skills. Close the Gaps.
                 </h2>
                 
                 <p className="text-dim text-lg max-w-md font-medium leading-relaxed opacity-80">
-                  Transcend basic keyword matching. Catalyst synthesizes your professional DNA against global benchmarks to extract your true technical displacement.
+                  Resumes only tell half the story. Our AI chats with you to verify your actual expertise and builds a personalized learning plan to bridge your skill gaps.
                 </p>
               </div>
 
@@ -749,17 +749,17 @@ export default function App() {
                     <Cpu className="w-5 h-5 opacity-40 group-hover:opacity-100 group-hover:accent-text transition-all" />
                   </div>
                   <div>
-                    <h4 className="text-xs font-black uppercase tracking-widest mb-1">Deep Synthesizer</h4>
-                    <p className="text-[10px] text-dim font-medium uppercase tracking-wider leading-tight">Extracts abstract competency from raw documentation</p>
+                    <h4 className="text-xs font-black uppercase tracking-widest mb-1">Smart Assessment</h4>
+                    <p className="text-[10px] text-dim font-medium uppercase tracking-wider leading-tight">Finds exactly what you know beyond keywords</p>
                   </div>
                 </div>
                 <div className="p-6 border-thin glass rounded-2xl space-y-3 interactive-glow group transition-all">
                   <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center group-hover:bg-accent/10 transition-colors">
-                    <Target className="w-5 h-5 opacity-40 group-hover:opacity-100 group-hover:accent-text transition-all" />
+                    <Target className="w-5 h-5 opacity-40 group-hover:opacity-100 group-hover:text-accent transition-all" />
                   </div>
                   <div>
-                    <h4 className="text-xs font-black uppercase tracking-widest mb-1">Target Mapping</h4>
-                    <p className="text-[10px] text-dim font-medium uppercase tracking-wider leading-tight">Zero-lag alignment with industry standardized roles</p>
+                    <h4 className="text-xs font-black uppercase tracking-widest mb-1">Goal Alignment</h4>
+                    <p className="text-[10px] text-dim font-medium uppercase tracking-wider leading-tight">Aligns your skills with real job requirements</p>
                   </div>
                 </div>
               </div>
@@ -770,12 +770,12 @@ export default function App() {
                   disabled={isSigningIn}
                   className={`flex items-center gap-3 px-8 py-5 rounded-2xl transition-all active:scale-95 group font-black uppercase tracking-widest text-xs shadow-2xl ${
                     isSigningIn 
-                      ? 'bg-white/10 text-white/20' 
+                      ? 'bg-subtle text-dim' 
                       : 'bg-white text-black hover:bg-accent'
                   }`}
                 >
                   {isSigningIn ? <Loader2 className="w-5 h-5 animate-spin" /> : <User className="w-5 h-5" />} 
-                  {isSigningIn ? 'Processing Auth Gateway...' : 'Initiate Secure Sync'}
+                  {isSigningIn ? 'Signing you in...' : 'Sign in to Start'}
                   {!isSigningIn && <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />}
                 </button>
               )}
@@ -795,7 +795,7 @@ export default function App() {
                         <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center border border-main">
                           <span className="text-[10px] font-black text-accent">01</span>
                         </div>
-                        <h3 className="text-xs font-black uppercase tracking-[0.2em] text-dim">Target Protocol (JD)</h3>
+                        <h3 className="text-xs font-black uppercase tracking-[0.2em] text-dim">Step 1: Job Description</h3>
                       </div>
                       
                       {jdInputMode !== 'choice' && (
@@ -826,14 +826,14 @@ export default function App() {
                             className="bg-subtle border border-main p-8 rounded-3xl flex flex-col items-center gap-4 hover:border-accent/40 hover:bg-accent/5 transition-all group"
                           >
                             <Upload className="w-6 h-6 opacity-20 group-hover:opacity-100 group-hover:text-accent transition-all" />
-                            <span className="text-[10px] font-black uppercase tracking-widest text-dim group-hover:text-primary">Vectorize PDF</span>
+                            <span className="text-[10px] font-black uppercase tracking-widest text-dim group-hover:text-primary">Upload JD PDF</span>
                           </button>
                           <button
                             onClick={() => setJdInputMode('text')}
                             className="bg-subtle border border-main p-8 rounded-3xl flex flex-col items-center gap-4 hover:border-accent/40 hover:bg-accent/5 transition-all group"
                           >
                             <FileText className="w-6 h-6 opacity-20 group-hover:opacity-100 group-hover:text-accent transition-all" />
-                            <span className="text-[10px] font-black uppercase tracking-widest text-dim group-hover:text-primary">Raw Buffer Input</span>
+                            <span className="text-[10px] font-black uppercase tracking-widest text-dim group-hover:text-primary">Paste JD Text</span>
                           </button>
                         </motion.div>
                       )}
@@ -848,8 +848,8 @@ export default function App() {
                           <textarea 
                             value={jd}
                             onChange={(e) => setJd(e.target.value)}
-                            placeholder="Injection sequence: Paste job description here..."
-                            className="w-full h-40 bg-black/40 border border-main rounded-3xl p-6 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-accent transition-all placeholder:opacity-20 text-white resize-none"
+                            placeholder="Paste the job description here..."
+                            className="w-full h-40 bg-subtle border border-main rounded-3xl p-6 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-accent transition-all placeholder:opacity-20 text-primary resize-none"
                           />
                         </motion.div>
                       )}
@@ -866,17 +866,17 @@ export default function App() {
                             onDragLeave={() => setIsDraggingJd(false)}
                             onDrop={(e) => { e.preventDefault(); setIsDraggingJd(false); onDrop(e, 'jd'); }}
                             className={`w-full min-h-[160px] border-2 border-dashed rounded-3xl flex flex-col items-center justify-center p-8 transition-all cursor-pointer ${
-                              isDraggingJd ? 'border-accent bg-accent/5 shadow-[0_0_30px_rgba(var(--accent-rgb),0.1)]' : 'border-white/5 hover:border-accent/30 hover:bg-white/5'
+                              isDraggingJd ? 'border-accent bg-accent/5 shadow-[0_0_30px_rgba(var(--accent-rgb),0.1)]' : 'border-main hover:border-accent/30 hover:bg-subtle'
                             }`}
                           >
                             <input type="file" ref={jdFileInputRef} onChange={(e) => onFileChange(e, 'jd')} accept=".pdf" className="hidden" />
                             {isParsingPdf && jdInputMode === 'pdf' ? (
                                 <div className="text-center space-y-4 w-full px-8">
-                                    <Loader2 className="w-8 h-8 animate-spin mx-auto accent-text" />
+                                    <Loader2 className="w-8 h-8 animate-spin mx-auto text-accent" />
                                     <div className="h-1.5 w-full bg-border-color rounded-full overflow-hidden">
                                         <motion.div animate={{ width: `${parsingProgress}%` }} className="h-full bg-accent" />
                                     </div>
-                                    <p className="text-[10px] font-black tracking-widest uppercase animate-pulse">Vectorizing Content...</p>
+                                    <p className="text-[10px] font-black tracking-widest uppercase animate-pulse">Analyzing Job Details...</p>
                                 </div>
                             ) : uploadedJdFileName ? (
                                 <div className="text-center space-y-2">
@@ -884,12 +884,12 @@ export default function App() {
                                         <CheckCircle2 className="w-6 h-6 text-accent" />
                                     </motion.div>
                                     <p className="text-sm font-bold">{uploadedJdFileName}</p>
-                                    <p className="text-[10px] uppercase font-black tracking-[0.2em] opacity-40">Ready for Synapse</p>
+                                    <p className="text-[10px] uppercase font-black tracking-[0.2em] opacity-40">JD Processed</p>
                                 </div>
                             ) : (
                                 <div className="text-center space-y-3 group-hover:scale-105 transition-transform">
                                     <Upload className="w-10 h-10 opacity-20 mx-auto" />
-                                    <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-40">Drop Target Protocol PDF</p>
+                                    <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-40">Drop Job Description PDF here</p>
                                 </div>
                             )}
                           </div>
@@ -905,7 +905,7 @@ export default function App() {
                         <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center border border-main">
                           <span className="text-[10px] font-black text-accent">02</span>
                         </div>
-                        <h3 className="text-xs font-black uppercase tracking-[0.2em] text-dim">Neural Blueprint (Resume)</h3>
+                        <h3 className="text-xs font-black uppercase tracking-[0.2em] text-dim">Step 2: Your Resume</h3>
                       </div>
                       
                       {resumeInputMode !== 'choice' && (
@@ -936,14 +936,14 @@ export default function App() {
                             className="bg-subtle border border-main p-8 rounded-3xl flex flex-col items-center gap-4 hover:border-accent/40 hover:bg-accent/5 transition-all group"
                           >
                             <Upload className="w-6 h-6 opacity-20 group-hover:opacity-100 group-hover:text-accent transition-all" />
-                            <span className="text-[10px] font-black uppercase tracking-widest text-dim group-hover:text-primary">Vectorize PDF</span>
+                            <span className="text-[10px] font-black uppercase tracking-widest text-dim group-hover:text-primary">Upload Resume PDF</span>
                           </button>
                           <button
                             onClick={() => setResumeInputMode('text')}
                             className="bg-subtle border border-main p-8 rounded-3xl flex flex-col items-center gap-4 hover:border-accent/40 hover:bg-accent/5 transition-all group"
                           >
                             <FileText className="w-6 h-6 opacity-20 group-hover:opacity-100 group-hover:text-accent transition-all" />
-                            <span className="text-[10px] font-black uppercase tracking-widest text-dim group-hover:text-primary">Raw Buffer Input</span>
+                            <span className="text-[10px] font-black uppercase tracking-widest text-dim group-hover:text-primary">Paste Resume Text</span>
                           </button>
                         </motion.div>
                       )}
@@ -957,8 +957,8 @@ export default function App() {
                           <textarea 
                             value={resume}
                             onChange={(e) => setResume(e.target.value)}
-                            placeholder="Injection sequence: Paste professional resume here..."
-                            className="w-full h-40 bg-black/40 border border-main rounded-3xl p-6 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-accent transition-all placeholder:opacity-20 text-white resize-none"
+                            placeholder="Paste your professional resume here..."
+                            className="w-full h-40 bg-subtle border border-main rounded-3xl p-6 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-accent transition-all placeholder:opacity-20 text-primary resize-none"
                           />
                         </motion.div>
                       )}
@@ -975,13 +975,13 @@ export default function App() {
                             onDragLeave={() => setIsDraggingResume(false)}
                             onDrop={(e) => { e.preventDefault(); setIsDraggingResume(false); onDrop(e, 'resume'); }}
                             className={`w-full min-h-[160px] border-2 border-dashed rounded-3xl flex flex-col items-center justify-center p-8 transition-all cursor-pointer ${
-                              isDraggingResume ? 'border-accent bg-accent/5 shadow-[0_0_30px_rgba(var(--accent-rgb),0.1)]' : 'border-white/5 hover:border-accent/30 hover:bg-white/5'
+                              isDraggingResume ? 'border-accent bg-accent/5 shadow-[0_0_30px_rgba(var(--accent-rgb),0.1)]' : 'border-main hover:border-accent/30 hover:bg-subtle'
                             }`}
                           >
                             <input type="file" ref={fileInputRef} onChange={(e) => onFileChange(e, 'resume')} accept=".pdf" className="hidden" />
                             {isParsingPdf && resumeInputMode === 'pdf' ? (
                                 <div className="text-center space-y-4 w-full px-8">
-                                    <Loader2 className="w-8 h-8 animate-spin mx-auto accent-text" />
+                                    <Loader2 className="w-8 h-8 animate-spin mx-auto text-accent" />
                                     <div className="h-1.5 w-full bg-border-color rounded-full overflow-hidden">
                                         <motion.div animate={{ width: `${parsingProgress}%` }} className="h-full bg-accent" />
                                     </div>
@@ -1021,19 +1021,19 @@ export default function App() {
                       disabled={isLoading || !jd.trim() || !resume.trim()}
                       className={`w-full py-6 rounded-3xl flex items-center justify-center gap-3 transition-all relative overflow-hidden group shadow-[0_20px_50px_rgba(0,0,0,0.4)] ${
                         isLoading || !jd.trim() || !resume.trim()
-                          ? 'bg-white/5 text-white/20'
+                          ? 'bg-subtle text-dim'
                           : 'bg-white text-black hover:bg-accent active:scale-[0.98]'
                       }`}
                     >
                       {isLoading ? (
                         <>
                           <Loader2 className="w-5 h-5 animate-spin" />
-                          <span className="text-xs uppercase font-black tracking-[0.2em]">Synthesizing Neural Path...</span>
+                          <span className="text-xs uppercase font-black tracking-[0.2em]">Building Assessment...</span>
                         </>
                       ) : (
                         <>
                           <Rocket className="w-5 h-5 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
-                          <span className="text-xs uppercase font-black tracking-[0.2em]">Initiate Deep Analysis</span>
+                          <span className="text-xs uppercase font-black tracking-[0.2em]">Start Skill Assessment</span>
                         </>
                       )}
                     </button>
@@ -1075,7 +1075,7 @@ export default function App() {
                   className="fixed bottom-10 left-1/2 z-[100] px-6 py-3 bg-accent text-black font-black text-[10px] uppercase tracking-widest rounded-full shadow-[0_0_30px_rgba(var(--accent-rgb),0.4)] flex items-center gap-2"
                 >
                   <Copy className="w-4 h-4" />
-                  Synaptic Link Copied
+                  Link Copied
                 </motion.div>
               )}
             </AnimatePresence>
@@ -1101,13 +1101,13 @@ export default function App() {
                     onClick={handleReset}
                     className="flex items-center gap-2 text-[9px] uppercase font-black tracking-widest px-4 py-1 bg-white/10 border border-white/10 rounded-full hover:bg-rose-500 hover:text-white transition-all ml-auto md:ml-0"
                   >
-                    <Plus className="w-3 h-3" /> New Analysis
+                    <Plus className="w-3 h-3" /> New Assessment
                   </button>
                 </div>
                 
                 <div className="space-y-2">
-                  <h2 className="text-6xl font-black tracking-tighter leading-none italic uppercase">Neural Eval<span className="text-accent italic">_</span>01</h2>
-                  <p className="text-[10px] text-dim uppercase tracking-[0.5em] font-black opacity-30 mt-4">Interactive Domain Mastery & Gap Synthesis</p>
+                  <h2 className="text-6xl font-black tracking-tighter leading-none italic uppercase text-primary">Skill <span className="text-accent italic">Assessment</span></h2>
+                  <p className="text-[10px] text-dim uppercase tracking-[0.5em] font-black opacity-30 mt-4">Personalized Feedback & Learning Plan</p>
                 </div>
                 
                 {/* Tab Navigation */}
@@ -1123,8 +1123,8 @@ export default function App() {
                       onClick={() => setActiveTab(tab.id as Tab)}
                       className={`flex items-center gap-2 px-6 py-3 rounded-xl text-[9px] uppercase tracking-[0.2em] font-black transition-all relative ${
                         activeTab === tab.id 
-                          ? 'text-black z-10' 
-                          : 'text-white/40 hover:text-white'
+                          ? 'text-primary' 
+                          : 'text-dim hover:text-primary'
                       }`}
                     >
                       {activeTab === tab.id && (
@@ -1147,13 +1147,13 @@ export default function App() {
                     {assessment.score}
                     <span className="text-2xl opacity-20 ml-1 font-medium">%</span>
                   </p>
-                  <p className="text-[9px] uppercase tracking-[0.3em] opacity-30 font-black">Synaptic Match Rating</p>
+                  <p className="text-[9px] uppercase tracking-[0.3em] opacity-30 font-black">Skill Match Score</p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-7xl font-black opacity-20">
                     {assessment.skills.filter(s => s.proficiency < 70).length.toString().padStart(2, '0')}
                   </p>
-                  <p className="text-[9px] uppercase tracking-[0.3em] opacity-30 font-black">Critical Gaps</p>
+                  <p className="text-[9px] uppercase tracking-[0.3em] opacity-30 font-black">Skill Gaps</p>
                 </div>
               </div>
             </div>
@@ -1176,13 +1176,13 @@ export default function App() {
                         </div>
                         
                         <div className="space-y-4">
-                          <h3 className="text-4xl font-black tracking-tighter uppercase">Executive Synthesis</h3>
+                          <h3 className="text-4xl font-black tracking-tighter uppercase text-primary">Assessment Overview</h3>
                           <div className="w-20 h-1 bg-accent/20 rounded-full" />
                         </div>
                         
                         <p className="text-dim leading-relaxed text-xl max-w-2xl font-medium">
-                          Profile congruence verified at <span className="text-white font-black underline decoration-accent underline-offset-8">{assessment.score}% capacity</span>. 
-                          Neural Core detects <span className="text-white font-black">{assessment.skills.length} distinct competence nodes</span> requiring cross-domain validation and has proposed an optimal mitigation sequence.
+                          We found that your skills match this role by <span className="text-primary font-black underline decoration-accent underline-offset-8">{assessment.score}%</span>. 
+                          Our system identified <span className="text-primary font-black">{assessment.skills.length} core skills</span> and built a plan to help you reach your goals.
                         </p>
                         
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-6">
@@ -1191,7 +1191,7 @@ export default function App() {
                               <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center mb-4">
                                 <Trophy className="w-5 h-5 text-emerald-500" />
                               </div>
-                              <p className="text-[9px] uppercase tracking-[0.3em] text-emerald-500 font-black mb-2">Core Domain Dominance</p>
+                              <p className="text-[9px] uppercase tracking-[0.3em] text-emerald-500 font-black mb-2">Top Skill</p>
                               <p className="text-2xl font-black tracking-tight uppercase">
                                 {[...assessment.skills].sort((a,b) => b.proficiency - a.proficiency)[0]?.name}
                               </p>
@@ -1202,7 +1202,7 @@ export default function App() {
                               <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center mb-4">
                                 <AlertCircle className="w-5 h-5 text-amber-500" />
                               </div>
-                              <p className="text-[9px] uppercase tracking-[0.3em] text-amber-500 font-black mb-2">Primary Evolutionary Gap</p>
+                              <p className="text-[9px] uppercase tracking-[0.3em] text-amber-500 font-black mb-2">Main Skill Gap</p>
                               <p className="text-2xl font-black tracking-tight uppercase">
                                 {[...assessment.skills].sort((a,b) => a.proficiency - b.proficiency)[0]?.name}
                               </p>
@@ -1214,20 +1214,20 @@ export default function App() {
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
                         <div className="glass border-thin p-10 rounded-[2.5rem] flex items-center gap-6 interactive-glow">
                           <div className="w-16 h-16 bg-accent/10 border border-accent/20 rounded-2xl flex items-center justify-center shadow-lg">
-                            <Target className="w-8 h-8 accent-text" />
+                            <Target className="w-8 h-8 text-accent" />
                           </div>
                           <div>
-                            <p className="text-[9px] opacity-30 uppercase tracking-[0.3em] font-black mb-1">Session Integrity</p>
-                            <p className="text-2xl font-black tracking-tight italic">LIVE_DECODE</p>
+                            <p className="text-[9px] opacity-30 uppercase tracking-[0.3em] font-black mb-1">Live Session</p>
+                            <p className="text-2xl font-black tracking-tight italic">ACTIVE_SESSION</p>
                           </div>
                         </div>
                         <div className="glass border-thin p-10 rounded-[2.5rem] flex items-center gap-6 interactive-glow">
                           <div className="w-16 h-16 bg-white/5 border border-white/5 rounded-2xl flex items-center justify-center">
-                            <Cpu className="w-8 h-8 opacity-40 text-white" />
+                            <Cpu className="w-8 h-8 opacity-40 text-primary" />
                           </div>
                           <div>
-                            <p className="text-[9px] opacity-30 uppercase tracking-[0.3em] font-black mb-1">Engine Protocol</p>
-                            <p className="text-2xl font-black tracking-tight italic">GEMINI_3F</p>
+                            <p className="text-[9px] opacity-30 uppercase tracking-[0.3em] font-black mb-1">AI Model</p>
+                            <p className="text-2xl font-black tracking-tight italic">GEMINI_AI</p>
                           </div>
                         </div>
                       </div>
@@ -1236,7 +1236,7 @@ export default function App() {
                     <div className="space-y-8">
                       <div className="glass border-thin p-10 rounded-[3rem] space-y-10 shadow-2xl relative overflow-hidden h-full">
                         <div className="space-y-2">
-                          <h3 className="text-[10px] uppercase tracking-[0.4em] font-black text-accent mb-6">Pipeline Commands</h3>
+                          <h3 className="text-[10px] uppercase tracking-[0.4em] font-black text-accent mb-6">Next Steps</h3>
                           <div className="w-10 h-0.5 bg-accent/40 mb-10" />
                         </div>
                         
@@ -1245,19 +1245,19 @@ export default function App() {
                             onClick={() => setActiveTab('interview')}
                             className="w-full p-6 bg-accent text-black font-black text-[10px] uppercase tracking-[0.2em] rounded-2xl hover:bg-white transition-all flex items-center justify-between group shadow-[0_20px_40px_rgba(var(--accent-rgb),0.3)] active:scale-95"
                           >
-                            Enter Interview Terminal <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                            Start AI Interview <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                           </button>
                           <button 
                             onClick={() => setActiveTab('learning')}
-                            className="w-full p-6 bg-white/5 border border-white/5 text-white font-black text-[10px] uppercase tracking-[0.2em] rounded-2xl hover:bg-white hover:text-black transition-all flex items-center justify-between active:scale-95"
+                            className="w-full p-6 bg-subtle border border-main text-primary font-black text-[10px] uppercase tracking-[0.2em] rounded-2xl hover:bg-white hover:text-black transition-all flex items-center justify-between active:scale-95"
                           >
-                            Explore Learning Path <ArrowRight className="w-4 h-4" />
+                            View Learning Plan <ArrowRight className="w-4 h-4" />
                           </button>
                           <button 
                             onClick={handleDownloadReport}
-                            className="w-full p-6 bg-black/40 border border-dashed border-white/10 text-white/40 font-black text-[10px] uppercase tracking-[0.2em] rounded-2xl hover:text-accent hover:border-accent transition-all flex items-center justify-between active:scale-95"
+                            className="w-full p-6 bg-subtle border border-dashed border-main text-dim font-black text-[10px] uppercase tracking-[0.2em] rounded-2xl hover:text-accent hover:border-accent transition-all flex items-center justify-between active:scale-95"
                           >
-                            Export Neural Report <Download className="w-4 h-4" />
+                            Download Full Report <Download className="w-4 h-4" />
                           </button>
                           
                           <div className="pt-10 mt-10 border-t border-white/5">
@@ -1265,7 +1265,7 @@ export default function App() {
                               onClick={handleReset}
                               className="w-full p-4 text-[9px] uppercase tracking-[0.3em] text-dim hover:text-rose-500 transition-colors font-black"
                             >
-                              Flush Neural Buffer [Reset]
+                              Reset Assessment
                             </button>
                           </div>
                         </div>
@@ -1282,10 +1282,10 @@ export default function App() {
                     exit={{ opacity: 0, x: -20 }}
                     className="space-y-12"
                   >
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 border-b border-white/5 pb-10">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 border-b border-main pb-10">
                       <div>
-                        <h3 className="text-4xl font-black tracking-tighter uppercase">Skill Analysis <span className="text-accent underline decoration-accent/20 underline-offset-8">Gap</span></h3>
-                        <p className="text-[10px] text-dim font-black uppercase tracking-[0.3em] mt-4 opacity-40">Synthesizing resume evidence & target domain parity</p>
+                        <h3 className="text-4xl font-black tracking-tighter uppercase text-primary">Skill Match <span className="text-accent underline decoration-accent/20 underline-offset-8">Gaps</span></h3>
+                        <p className="text-[10px] text-dim font-black uppercase tracking-[0.3em] mt-4 opacity-40">Comparing your resume to job requirements</p>
                       </div>
                       <div className="flex gap-4 items-center">
                         <div className="relative w-72 group">
@@ -1294,18 +1294,18 @@ export default function App() {
                             type="text"
                             value={skillSearchQuery}
                             onChange={(e) => setSkillSearchQuery(e.target.value)}
-                            placeholder="FILTER NEURAL NODES..."
-                            className="w-full bg-black/40 border border-white/10 rounded-2xl pl-12 pr-6 py-4 text-[10px] uppercase tracking-widest focus:outline-none focus:ring-2 focus:ring-accent transition-all placeholder:opacity-20 text-white"
+                            placeholder="SEARCH SKILLS..."
+                            className="w-full bg-subtle border border-main rounded-2xl pl-12 pr-6 py-4 text-[10px] uppercase tracking-widest focus:outline-none focus:ring-2 focus:ring-accent transition-all placeholder:opacity-20 text-primary"
                           />
                         </div>
                         <button 
                           onClick={() => setSortByGap(!sortByGap)}
                           className={`text-[9px] uppercase tracking-widest font-black px-6 py-4 rounded-2xl border transition-all flex items-center gap-3 active:scale-95 ${
-                            sortByGap ? 'border-accent text-accent bg-accent/10 shadow-[0_0_20px_rgba(var(--accent-rgb),0.2)]' : 'border-white/10 text-white/40 hover:text-white hover:bg-white/5'
+                            sortByGap ? 'border-accent text-accent bg-accent/10 shadow-[0_0_20px_rgba(var(--accent-rgb),0.2)]' : 'border-main text-dim hover:text-primary hover:bg-subtle'
                           }`}
                         >
                           <Filter className="w-4 h-4" />
-                          {sortByGap ? 'Fixating Critical Gaps' : 'Standard Priority'}
+                          {sortByGap ? 'Showing Skill Gaps' : 'All Skills'}
                         </button>
                       </div>
                     </div>
@@ -1330,7 +1330,7 @@ export default function App() {
                               <div className="flex-1 h-px bg-white/5" />
                               <div className="px-4 py-1.5 rounded-full bg-white/5 border border-white/10">
                                 <span className="text-[10px] font-black uppercase tracking-widest opacity-60">
-                                  {skills.length.toString().padStart(2, '0')} Nodes Detected
+                                  {skills.length.toString().padStart(2, '0')} Skills Detected
                                 </span>
                               </div>
                             </div>
@@ -1347,10 +1347,10 @@ export default function App() {
                                 >
                                   <div className="flex justify-between items-start mb-8">
                                     <div className="flex flex-col gap-3">
-                                      <h4 className="font-bold text-2xl tracking-tight group-hover:text-accent transition-colors">{skill.name}</h4>
+                                      <h4 className="font-bold text-2xl tracking-tight group-hover:text-accent transition-colors text-primary">{skill.name}</h4>
                                       {skill.isVerified && (
                                         <span className="flex items-center gap-2 w-fit text-[9px] bg-accent/20 text-accent px-3 py-1.5 rounded-full font-black uppercase tracking-[0.1em] shadow-lg shadow-accent/10 border border-accent/20">
-                                          <BrainCircuit className="w-3.5 h-3.5" />Verified Node
+                                          <BrainCircuit className="w-3.5 h-3.5" />Verified Skill
                                         </span>
                                       )}
                                     </div>
@@ -1361,10 +1361,10 @@ export default function App() {
 
                                   <div className="space-y-2 text-right mb-8">
                                     <p className="text-6xl font-black tracking-tighter leading-none">{skill.proficiency}%</p>
-                                    <p className="text-[10px] uppercase tracking-[0.4em] opacity-30 font-black">Neural Displacement</p>
+                                    <p className="text-[10px] uppercase tracking-[0.4em] opacity-30 font-black">Proficiency Level</p>
                                   </div>
 
-                                  <div className="h-2 w-full bg-black/40 rounded-full overflow-hidden relative mb-3 p-0.5 border border-white/5">
+                                  <div className="h-2 w-full bg-subtle rounded-full overflow-hidden relative mb-3 p-0.5 border border-main">
                                     <motion.div 
                                       initial={{ width: 0 }}
                                       animate={{ width: `${skill.proficiency}%` }}
@@ -1392,11 +1392,11 @@ export default function App() {
                                         className="pt-10 space-y-8"
                                       >
                                         <div className="space-y-3 border-l-2 border-accent pl-6">
-                                          <p className="text-[10px] uppercase font-black tracking-[0.3em] text-accent">Analysis Outcome</p>
+                                          <p className="text-[10px] uppercase font-black tracking-[0.3em] text-accent">Feedback</p>
                                           <p className="text-sm text-dim leading-relaxed font-medium italic">"{skill.resumeNotes}"</p>
                                         </div>
                                         <div className="space-y-3 border-l-2 border-amber-500 pl-6">
-                                          <p className="text-[10px] uppercase font-black tracking-[0.3em] text-amber-500">Requirement Gaps</p>
+                                          <p className="text-[10px] uppercase font-black tracking-[0.3em] text-amber-500">Skill Gaps</p>
                                           <p className="text-sm text-dim leading-relaxed font-medium">{skill.gapDescription}</p>
                                         </div>
                                       </motion.div>
@@ -1410,8 +1410,8 @@ export default function App() {
 
                         return (
                           <div className="space-y-24">
-                            {(gapSkills.length > 0 || !sortByGap) && renderGroup(gapSkills, "Critical Evolutionary Gaps", "bg-amber-500", "rgba(245,158,11,0.5)")}
-                            {(matchedSkills.length > 0 || !sortByGap) && renderGroup(matchedSkills, "Verified Neural Assets", "bg-emerald-500", "rgba(16,185,129,0.5)")}
+                            {(gapSkills.length > 0 || !sortByGap) && renderGroup(gapSkills, "Skills to Improve", "bg-amber-500", "rgba(245,158,11,0.5)")}
+                            {(matchedSkills.length > 0 || !sortByGap) && renderGroup(matchedSkills, "Matched Skills", "bg-emerald-500", "rgba(16,185,129,0.5)")}
                           </div>
                         );
                       })()}
@@ -1435,10 +1435,10 @@ export default function App() {
                           <MessageSquareCode className="w-8 h-8" />
                         </div>
                         <div>
-                          <h3 className="text-3xl font-black tracking-tighter uppercase italic">Neural_Verify <span className="text-accent underline decoration-accent/20 underline-offset-4">Terminal</span></h3>
+                          <h3 className="text-3xl font-black tracking-tighter uppercase italic">Skill <span className="text-accent underline decoration-accent/20 underline-offset-4">Interview</span></h3>
                           <div className="flex items-center gap-3 mt-2">
                             <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
-                            <p className="text-[10px] uppercase tracking-[0.3em] text-accent font-black">Live Cognitive Validation Active</p>
+                            <p className="text-[10px] uppercase tracking-[0.3em] text-accent font-black">AI Interview Active</p>
                           </div>
                         </div>
                       </div>
@@ -1454,7 +1454,7 @@ export default function App() {
                       </div>
                     </div>
 
-                    <div className="flex-1 glass border-thin rounded-[3rem] flex flex-col overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.6)] relative bg-black/60">
+                    <div className="flex-1 glass border-thin rounded-[3rem] flex flex-col overflow-hidden shadow-2xl relative bg-subtle/80">
                       <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-transparent via-accent/20 to-transparent blur-sm" />
                       
                       <div className="flex-1 overflow-y-auto p-12 space-y-12 scroll-smooth custom-scrollbar relative">
@@ -1469,15 +1469,15 @@ export default function App() {
                             className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                           >
                             <div 
-                              className={`max-w-[75%] px-10 py-7 rounded-[2.5rem] text-[16px] leading-relaxed shadow-3xl relative overflow-hidden ${
+                              className={`max-w-[75%] px-10 py-7 rounded-[2.5rem] text-[16px] leading-relaxed relative overflow-hidden ${
                                 msg.role === 'user' 
-                                  ? 'bg-white text-black font-semibold rounded-tr-none' 
+                                  ? 'bg-primary text-background font-semibold rounded-tr-none shadow-xl' 
                                   : 'bg-subtle backdrop-blur-2xl border border-main text-primary rounded-tl-none shadow-xl'
                               }`}
                             >
                               <div className={`flex items-center gap-3 mb-5 opacity-40 text-[10px] uppercase font-black tracking-[0.2em] ${msg.role === 'user' ? 'justify-end border-b border-black/10 pb-3' : 'border-b border-main pb-3'}`}>
                                 {msg.role === 'assistant' ? <BrainCircuit className="w-4 h-4 text-accent" /> : <User className="w-4 h-4" />}
-                                {msg.role === 'assistant' ? 'Neural_Evaluator' : 'Root_User'}
+                                {msg.role === 'assistant' ? 'AI Interviewer' : 'Candidate'}
                               </div>
                               <div className={`markdown-body ${msg.role === 'user' ? 'italic' : ''}`}>
                                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
@@ -1521,7 +1521,7 @@ export default function App() {
                         <div ref={chatEndRef} />
                       </div>
 
-                      <div className="p-10 bg-black/40 backdrop-blur-3xl border-t border-white/5">
+                      <div className="p-10 bg-subtle/40 backdrop-blur-3xl border-t border-main">
                         <form 
                           onSubmit={(e) => {
                             e.preventDefault();
@@ -1545,7 +1545,7 @@ export default function App() {
                           <button 
                             type="submit"
                             disabled={isTyping || !currentInput.trim()}
-                            className="bg-white text-black p-6 rounded-[1.5rem] hover:bg-accent transition-all disabled:opacity-50 active:scale-95 shadow-[0_20px_40px_rgba(0,0,0,0.4)] group border border-white/10"
+                            className="bg-primary text-background p-6 rounded-[1.5rem] hover:bg-accent hover:text-black transition-all disabled:opacity-50 active:scale-95 shadow-xl group border border-main"
                           >
                             <Send className="w-8 h-8 group-hover:translate-x-1.5 group-hover:-translate-y-1 transition-transform" />
                           </button>
@@ -1565,13 +1565,13 @@ export default function App() {
                   >
                       <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 border-b border-main pb-10">
                         <div>
-                          <h3 className="text-5xl font-black tracking-tighter italic uppercase underline decoration-accent/20 underline-offset-10 text-primary">Learning <span className="text-accent underline decoration-accent underline-offset-10 italic">Path</span></h3>
-                          <p className="text-[11px] text-dim font-black uppercase tracking-[0.4em] mt-5 italic opacity-40">Personalized strategic intelligence to close skill gaps</p>
+                          <h3 className="text-5xl font-black tracking-tighter italic uppercase underline decoration-accent/20 underline-offset-10 text-primary">Learning <span className="text-accent underline decoration-accent underline-offset-10 italic">Plan</span></h3>
+                          <p className="text-[11px] text-dim font-black uppercase tracking-[0.4em] mt-5 italic opacity-40">Your personalized roadmap to bridge identified skill gaps</p>
                         </div>
                         <div className="flex items-center gap-6">
                           <div className="text-right">
-                              <p className="text-[10px] uppercase font-black tracking-widest text-dim mb-1">Training Protocol</p>
-                              <p className="text-2xl font-black tracking-widest uppercase text-primary">L_PATH_01</p>
+                              <p className="text-[10px] uppercase font-black tracking-widest text-dim mb-1">Personalized Path</p>
+                              <p className="text-2xl font-black tracking-widest uppercase text-primary">M_PLAN_01</p>
                           </div>
                           <BookOpen className="w-14 h-14 text-accent opacity-20" />
                         </div>
@@ -1653,69 +1653,6 @@ export default function App() {
         )}
       </main>
 
-      {/* Architecture Info Section (Req 04) - Hidden if assessment active to focus UI */}
-      {!assessment && (
-        <section className="max-w-7xl mx-auto w-full mt-20 mb-10 px-4 md:px-0">
-            <div className="glass border-thin p-10 rounded-3xl space-y-8">
-            <div className="space-y-4">
-                <h2 className="text-3xl font-bold tracking-tighter">AI Architecture & Scoring Logic</h2>
-                <p className="text-dim max-w-3xl">
-                Catalyst utilizes a multi-phase neural assessment engine powered by Gemini 3 Flash. 
-                </p>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                <div className="space-y-3">
-                <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center border border-emerald-500/30">
-                    <Search className="w-5 h-5 text-emerald-500" />
-                </div>
-                <h3 className="font-bold text-sm uppercase tracking-wider">01. JD Extraction</h3>
-                <p className="text-xs opacity-50 leading-relaxed">
-                    The JD is processed to extract absolute technical requirements using structured JSON schemas, ensuring zero-loss requirement mapping.
-                </p>
-                </div>
-                <div className="space-y-3">
-                <div className="w-10 h-10 rounded-full bg-accent/20 flex items-center justify-center border border-accent/30">
-                    <BrainCircuit className="w-5 h-5 accent-text" />
-                </div>
-                <h3 className="font-bold text-sm uppercase tracking-wider">02. Semantic Score</h3>
-                <p className="text-xs opacity-50 leading-relaxed">
-                    Resumes are semantically mapped against extracted skills using a deterministic Bayesian scoring rubric. We now compare results against real industry benchmarks and provide verified learning resources via live neural search.
-                </p>
-                </div>
-                <div className="space-y-3">
-                <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center border border-amber-500/30">
-                    <BookOpen className="w-5 h-5 text-amber-500" />
-                </div>
-                <h3 className="font-bold text-sm uppercase tracking-wider">03. Synthesis</h3>
-                <p className="text-xs opacity-50 leading-relaxed">
-                    Identified gaps trigger a secondary generation cycle to curate specific learning resources and realistic time-to-market estimates.
-                </p>
-                </div>
-            </div>
-            </div>
-        </section>
-      )}
-
-      {/* Footer */}
-      <footer className="mt-auto grid grid-cols-2 md:grid-cols-4 gap-8 border-t border-main pt-8 pb-4">
-        <div className="space-y-1">
-          <p className="text-[9px] uppercase tracking-widest opacity-40 font-bold">Submission Req 01</p>
-          <p className="text-xs font-medium">Working Prototype URL</p>
-        </div>
-        <div className="space-y-1">
-          <p className="text-[9px] uppercase tracking-widest opacity-40 font-bold">Submission Req 02</p>
-          <p className="text-xs font-medium">Public Github Repo / README</p>
-        </div>
-        <div className="space-y-1">
-          <p className="text-[9px] uppercase tracking-widest opacity-40 font-bold">Submission Req 03</p>
-          <p className="text-xs font-medium">3–5 Minute Demo Video</p>
-        </div>
-        <div className="space-y-1">
-          <p className="text-[9px] uppercase tracking-widest opacity-40 font-bold">Submission Req 04</p>
-          <p className="text-xs font-medium">Architecture & Logic Diagram</p>
-        </div>
-      </footer>
     </div>
   );
 }

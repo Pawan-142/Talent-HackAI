@@ -149,7 +149,7 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [loadingStage, setLoadingStage] = useState<string | null>(null);
   
-  type Tab = 'overview' | 'skills' | 'interview' | 'plan';
+  type Tab = 'overview' | 'skills' | 'interview' | 'learning';
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   
   const [assessment, setAssessment] = useState<{
@@ -602,10 +602,10 @@ export default function App() {
         <div className="flex items-center gap-6">
           <button 
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            className="p-2 glass border-thin rounded-lg hover:accent-text transition-colors"
+            className="p-2 glass border-thin rounded-lg hover:text-accent transition-colors"
             title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
           >
-            {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            {theme === 'dark' ? <Sun className="w-5 h-5 text-accent" /> : <Moon className="w-5 h-5 text-accent" />}
           </button>
 
           {user ? (
@@ -720,10 +720,10 @@ export default function App() {
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start relative z-10 py-12 px-4"
+            className="grid grid-cols-1 lg:grid-cols-12 gap-12 xl:gap-20 items-start relative z-10 py-12 px-4"
           >
-            <div className="lg:col-span-5 space-y-10">
-              <div className="space-y-6">
+            <div className="lg:col-span-5 space-y-12 pr-4">
+              <div className="space-y-8">
                 <motion.div 
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
@@ -733,10 +733,8 @@ export default function App() {
                   <p className="text-[10px] uppercase tracking-widest text-accent font-black">Neural Cognitive Core Active</p>
                 </motion.div>
                 
-                <h2 className="huge-display accent-glow text-white">
-                  Map Your <br />
-                  <span className="text-accent">Neural</span> <br />
-                  Proficiency.
+                <h2 className="huge-display accent-glow text-primary">
+                  Map Your <span className="text-accent">Neural</span> Proficiency.
                 </h2>
                 
                 <p className="text-dim text-lg max-w-md font-medium leading-relaxed opacity-80">
@@ -791,12 +789,12 @@ export default function App() {
                 <div className="relative space-y-10">
                   {/* Step 1: JD */}
                   <div className="space-y-4">
-                    <div className="flex justify-between items-center bg-white/5 p-4 rounded-2xl border-thin">
+                    <div className="flex justify-between items-center bg-subtle p-4 rounded-2xl border-thin">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-black flex items-center justify-center border border-white/10">
+                        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center border border-main">
                           <span className="text-[10px] font-black text-accent">01</span>
                         </div>
-                        <h3 className="text-xs font-black uppercase tracking-[0.2em] text-white/50">Target Protocol (JD)</h3>
+                        <h3 className="text-xs font-black uppercase tracking-[0.2em] text-dim">Target Protocol (JD)</h3>
                       </div>
                       
                       {jdInputMode !== 'choice' && (
@@ -824,17 +822,17 @@ export default function App() {
                         >
                           <button
                             onClick={() => setJdInputMode('pdf')}
-                            className="bg-black/40 border border-white/5 p-8 rounded-3xl flex flex-col items-center gap-4 hover:border-accent/40 hover:bg-accent/5 transition-all group"
+                            className="bg-subtle border border-main p-8 rounded-3xl flex flex-col items-center gap-4 hover:border-accent/40 hover:bg-accent/5 transition-all group"
                           >
-                            <Upload className="w-6 h-6 opacity-20 group-hover:opacity-100 group-hover:accent-text transition-all" />
-                            <span className="text-[10px] font-black uppercase tracking-widest text-white/40 group-hover:text-white">Vectorize PDF</span>
+                            <Upload className="w-6 h-6 opacity-20 group-hover:opacity-100 group-hover:text-accent transition-all" />
+                            <span className="text-[10px] font-black uppercase tracking-widest text-dim group-hover:text-primary">Vectorize PDF</span>
                           </button>
                           <button
                             onClick={() => setJdInputMode('text')}
-                            className="bg-black/40 border border-white/5 p-8 rounded-3xl flex flex-col items-center gap-4 hover:border-accent/40 hover:bg-accent/5 transition-all group"
+                            className="bg-subtle border border-main p-8 rounded-3xl flex flex-col items-center gap-4 hover:border-accent/40 hover:bg-accent/5 transition-all group"
                           >
-                            <FileText className="w-6 h-6 opacity-20 group-hover:opacity-100 group-hover:accent-text transition-all" />
-                            <span className="text-[10px] font-black uppercase tracking-widest text-white/40 group-hover:text-white">Raw Buffer Input</span>
+                            <FileText className="w-6 h-6 opacity-20 group-hover:opacity-100 group-hover:text-accent transition-all" />
+                            <span className="text-[10px] font-black uppercase tracking-widest text-dim group-hover:text-primary">Raw Buffer Input</span>
                           </button>
                         </motion.div>
                       )}
@@ -901,12 +899,12 @@ export default function App() {
 
                   {/* Step 2: Resume */}
                   <div className="space-y-4">
-                    <div className="flex justify-between items-center bg-white/5 p-4 rounded-2xl border-thin">
+                    <div className="flex justify-between items-center bg-subtle p-4 rounded-2xl border-thin">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-black flex items-center justify-center border border-white/10">
+                        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center border border-main">
                           <span className="text-[10px] font-black text-accent">02</span>
                         </div>
-                        <h3 className="text-xs font-black uppercase tracking-[0.2em] text-white/50">Neural Blueprint (Resume)</h3>
+                        <h3 className="text-xs font-black uppercase tracking-[0.2em] text-dim">Neural Blueprint (Resume)</h3>
                       </div>
                       
                       {resumeInputMode !== 'choice' && (
@@ -934,17 +932,17 @@ export default function App() {
                         >
                           <button
                             onClick={() => setResumeInputMode('pdf')}
-                            className="bg-black/40 border border-white/5 p-8 rounded-3xl flex flex-col items-center gap-4 hover:border-accent/40 hover:bg-accent/5 transition-all group"
+                            className="bg-subtle border border-main p-8 rounded-3xl flex flex-col items-center gap-4 hover:border-accent/40 hover:bg-accent/5 transition-all group"
                           >
-                            <Upload className="w-6 h-6 opacity-20 group-hover:opacity-100 group-hover:accent-text transition-all" />
-                            <span className="text-[10px] font-black uppercase tracking-widest text-white/40 group-hover:text-white">Vectorize PDF</span>
+                            <Upload className="w-6 h-6 opacity-20 group-hover:opacity-100 group-hover:text-accent transition-all" />
+                            <span className="text-[10px] font-black uppercase tracking-widest text-dim group-hover:text-primary">Vectorize PDF</span>
                           </button>
                           <button
                             onClick={() => setResumeInputMode('text')}
-                            className="bg-black/40 border border-white/5 p-8 rounded-3xl flex flex-col items-center gap-4 hover:border-accent/40 hover:bg-accent/5 transition-all group"
+                            className="bg-subtle border border-main p-8 rounded-3xl flex flex-col items-center gap-4 hover:border-accent/40 hover:bg-accent/5 transition-all group"
                           >
-                            <FileText className="w-6 h-6 opacity-20 group-hover:opacity-100 group-hover:accent-text transition-all" />
-                            <span className="text-[10px] font-black uppercase tracking-widest text-white/40 group-hover:text-white">Raw Buffer Input</span>
+                            <FileText className="w-6 h-6 opacity-20 group-hover:opacity-100 group-hover:text-accent transition-all" />
+                            <span className="text-[10px] font-black uppercase tracking-widest text-dim group-hover:text-primary">Raw Buffer Input</span>
                           </button>
                         </motion.div>
                       )}
@@ -1117,7 +1115,7 @@ export default function App() {
                     { id: 'overview', label: 'Overview', icon: Layout },
                     { id: 'skills', label: 'Skill Mesh', icon: BrainCircuit },
                     { id: 'interview', label: 'Interview', icon: MessageSquareCode },
-                    { id: 'plan', label: 'Evolution', icon: Rocket }
+                    { id: 'learning', label: 'Learning Path', icon: BookOpen }
                   ].map(tab => (
                     <button
                       key={tab.id}
@@ -1249,10 +1247,10 @@ export default function App() {
                             Enter Interview Terminal <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                           </button>
                           <button 
-                            onClick={() => setActiveTab('plan')}
+                            onClick={() => setActiveTab('learning')}
                             className="w-full p-6 bg-white/5 border border-white/5 text-white font-black text-[10px] uppercase tracking-[0.2em] rounded-2xl hover:bg-white hover:text-black transition-all flex items-center justify-between active:scale-95"
                           >
-                            Explore Evolution Path <ArrowRight className="w-4 h-4" />
+                            Explore Learning Path <ArrowRight className="w-4 h-4" />
                           </button>
                           <button 
                             onClick={handleDownloadReport}
@@ -1556,27 +1554,27 @@ export default function App() {
                   </motion.div>
                 )}
 
-                {activeTab === 'plan' && (
+                {activeTab === 'learning' && (
                   <motion.div 
-                    key="plan"
+                    key="learning"
                     initial={{ opacity: 0, x: -40 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: 40 }}
                     className="space-y-12"
                   >
-                    <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 border-b border-white/5 pb-10">
-                      <div>
-                        <h3 className="text-5xl font-black tracking-tighter italic uppercase underline decoration-accent/20 underline-offset-10">Evolution <span className="text-accent underline decoration-accent underline-offset-10 italic">Map</span></h3>
-                        <p className="text-[11px] text-dim font-black uppercase tracking-[0.4em] mt-5 italic opacity-40">Dynamic strategic intelligence to optimize domain parity</p>
-                      </div>
-                      <div className="flex items-center gap-6">
-                        <div className="text-right">
-                            <p className="text-[10px] uppercase font-black tracking-widest opacity-30 mb-1">Target Convergence</p>
-                            <p className="text-2xl font-black tracking-widest uppercase">P_CONVERGE_01</p>
+                      <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 border-b border-main pb-10">
+                        <div>
+                          <h3 className="text-5xl font-black tracking-tighter italic uppercase underline decoration-accent/20 underline-offset-10 text-primary">Learning <span className="text-accent underline decoration-accent underline-offset-10 italic">Path</span></h3>
+                          <p className="text-[11px] text-dim font-black uppercase tracking-[0.4em] mt-5 italic opacity-40">Personalized strategic intelligence to close skill gaps</p>
                         </div>
-                        <Rocket className="w-14 h-14 text-accent opacity-20" />
+                        <div className="flex items-center gap-6">
+                          <div className="text-right">
+                              <p className="text-[10px] uppercase font-black tracking-widest text-dim mb-1">Training Protocol</p>
+                              <p className="text-2xl font-black tracking-widest uppercase text-primary">L_PATH_01</p>
+                          </div>
+                          <BookOpen className="w-14 h-14 text-accent opacity-20" />
+                        </div>
                       </div>
-                    </div>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                       {assessment.plan.map((step, idx) => (

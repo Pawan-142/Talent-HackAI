@@ -41,8 +41,7 @@ Talent Hack AI introduces a **Neural Protocol Engine** that:
 
 ---
 
-
-##🌐 Live Demo
+🌐 Live Demo
 
 Experience the application in action:
 

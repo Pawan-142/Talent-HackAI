@@ -18,8 +18,6 @@ import {
   LogOut,
   History,
   Plus,
-  ThumbsUp,
-  ThumbsDown,
   Filter,
   ExternalLink,
   Upload,
@@ -28,6 +26,13 @@ import {
   Share,
   Copy,
   Download,
+  Layout,
+  Command,
+  Rocket,
+  Cpu,
+  Clock,
+  Trophy,
+  MessageSquareCode,
   Sun,
   Moon
 } from 'lucide-react';
@@ -49,10 +54,8 @@ import {
 } from 'firebase/firestore';
 import { auth, signInWithGoogle, db, handleFirestoreError } from './lib/firebase';
 import { 
-  extractSkillsFromJD, 
-  assessSkillProficiency, 
-  generateLearningPlan, 
   chatWithAgent,
+  analyzeCareer,
   Skill, 
   LearningStep 
 } from './lib/gemini';
@@ -65,6 +68,7 @@ export default function App() {
   const [showHistory, setShowHistory] = useState(false);
   const [isSharedMode, setIsSharedMode] = useState(false);
   const [showCopyToast, setShowCopyToast] = useState(false);
+  const [isSigningIn, setIsSigningIn] = useState(false);
 
   const [isTyping, setIsTyping] = useState(false);
   const [assessmentError, setAssessmentError] = useState<string | null>(null);
@@ -84,7 +88,6 @@ export default function App() {
   const [resumeInputMode, setResumeInputMode] = useState<'choice' | 'pdf' | 'text'>('choice');
   const [isParsingPdf, setIsParsingPdf] = useState(false);
   const [parsingProgress, setParsingProgress] = useState(0);
-  const [parsingDetails, setParsingDetails] = useState({ current: 0, total: 0 });
   const [isDraggingResume, setIsDraggingResume] = useState(false);
   const [isDraggingJd, setIsDraggingJd] = useState(false);
   const [skillSearchQuery, setSkillSearchQuery] = useState('');
@@ -107,12 +110,10 @@ export default function App() {
 
     setIsParsingPdf(true);
     setParsingProgress(0);
-    setParsingDetails({ current: 0, total: 0 });
     setAssessmentError(null);
     try {
-      const text = await extractTextFromPdf(file, (progress, current, total) => {
+      const text = await extractTextFromPdf(file, (progress) => {
         setParsingProgress(progress);
-        setParsingDetails({ current, total });
       });
       if (!text || text.trim().length === 0) {
         throw new Error("PDF seems empty or consists mainly of non-textual data.");
@@ -146,6 +147,11 @@ export default function App() {
     if (file) handleFileUpload(file, type);
   };
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingStage, setLoadingStage] = useState<string | null>(null);
+  
+  type Tab = 'overview' | 'skills' | 'interview' | 'plan';
+  const [activeTab, setActiveTab] = useState<Tab>('overview');
+  
   const [assessment, setAssessment] = useState<{
     id?: string;
     skills: Skill[];
@@ -165,9 +171,26 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u);
       setIsAuthLoading(false);
+      
+      // Reset state if logging out
+      if (!u) {
+        setAssessment(null);
+        setJd('');
+        setJdInputMode('choice');
+        setResume('');
+        setResumeInputMode('choice');
+        setUploadedFileName(null);
+        setUploadedJdFileName(null);
+        setChatMessages([]);
+        setHistory([]);
+      }
     });
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages]);
 
   useEffect(() => {
     if (!user) {
@@ -242,24 +265,43 @@ export default function App() {
 
   const handleAssessment = async () => {
     if (!jd || !resume) return;
+    
+    const cleanJd = jd.trim();
+    const cleanResume = resume.trim();
+
+    if (cleanJd.length < 50 || cleanResume.length < 50) {
+      setAssessmentError("One of the documents seems to have very little text. Please ensure the PDF was parsed correctly.");
+      return;
+    }
+
     setIsLoading(true);
+    setLoadingStage('Analyzing Skill Requirements & Resume Gaps');
     setAssessmentError(null);
     try {
-      const skillsList = await extractSkillsFromJD(jd);
+      const { skills: skillsProficiency, plan: learningPlan } = await analyzeCareer(jd, resume);
       
-      if (!skillsList || skillsList.length === 0) {
-        setAssessmentError("Neural Core failed to extract skills from the provided Job Description. Please ensure it contains relevant technical requirements.");
+      if (!skillsProficiency || skillsProficiency.length === 0) {
+        setAssessmentError("Neural Core failed to evaluate skills. Please ensure the inputs contain relevant technical requirements.");
         setIsLoading(false);
         return;
       }
 
-      const skillsProficiency = await assessSkillProficiency(resume, skillsList);
+      setLoadingStage('Initiating Neural Interview Agent');
+
       const gaps = skillsProficiency.filter(s => s.proficiency < 70);
-      const learningPlan = await generateLearningPlan(gaps);
       
       const averageScore = Math.round(
         skillsProficiency.reduce((acc, curr) => acc + curr.proficiency, 0) / (skillsProficiency.length || 1)
       );
+
+      const initialIntro = `Assessment complete! You have a skill match score of ${averageScore}%. I've identified ${gaps.length} areas for growth. I'm now entering Neural Interview mode to refine your score through conversation.`;
+      
+      // Get a proactive first question from the agent
+      const aiData = await chatWithAgent([{ role: 'user', content: "Please introduce yourself and ask your first interview question based on my profile analysis." }], skillsProficiency, learningPlan);
+      const assistantMessage = { role: 'assistant' as const, content: `${initialIntro}\n\n${aiData.message}` };
+      
+      setChatMessages([assistantMessage]);
+      setActiveTab('interview');
 
       const newAssessment = {
         skills: skillsProficiency,
@@ -270,38 +312,29 @@ export default function App() {
 
       if (user) {
         const docRef = await addDoc(collection(db, 'assessments'), {
-          skills: newAssessment.skills,
-          plan: newAssessment.plan,
-          score: newAssessment.score,
+          ...newAssessment,
           userId: user.uid,
           jd,
           resume,
           createdAt: serverTimestamp()
         });
 
-        // Add initial message
-        const initialMessage = {
-          role: 'assistant',
-          content: `Assessment complete! You have a skill match score of ${averageScore}%. I've identified ${gaps.length} areas for growth. How can I help you prepare for this role?`,
+        // Add initial message to DB
+        await addDoc(collection(db, 'assessments', docRef.id, 'messages'), {
+          ...assistantMessage,
           createdAt: serverTimestamp()
-        };
-        await addDoc(collection(db, 'assessments', docRef.id, 'messages'), initialMessage);
+        });
         
         setAssessment({ id: docRef.id, ...newAssessment });
       } else {
         setAssessment(newAssessment);
-        setChatMessages([
-          { 
-            role: 'assistant', 
-            content: `Assessment complete! You have a skill match score of ${averageScore}%. I've identified ${gaps.length} areas for growth. How can I help you prepare for this role?` 
-          }
-        ]);
       }
     } catch (error) {
       console.error(error);
       if (user) handleFirestoreError(error, 'create', 'assessments');
     } finally {
       setIsLoading(false);
+      setLoadingStage(null);
     }
   };
 
@@ -324,7 +357,7 @@ export default function App() {
 
       // Handle Skill Updates from Chat
       if (data.updates && data.updates.length > 0 && assessment) {
-        let updatedSkills = [...assessment.skills];
+        const updatedSkills = [...assessment.skills];
         let hasChanges = false;
 
         data.updates.forEach((update: any) => {
@@ -333,7 +366,8 @@ export default function App() {
             updatedSkills[index] = {
               ...updatedSkills[index],
               proficiency: update.proficiency,
-              resumeNotes: update.reason || updatedSkills[index].resumeNotes
+              resumeNotes: update.reason || updatedSkills[index].resumeNotes,
+              isVerified: true
             };
             hasChanges = true;
           }
@@ -382,27 +416,6 @@ export default function App() {
       setAssessmentError("Failed to get response from neural core.");
     } finally {
       setIsTyping(false);
-    }
-  };
-
-  const handleRateStep = async (stepIndex: number, rating: 'helpful' | 'unhelpful') => {
-    if (!assessment?.id || !user || user.uid !== (assessment as any).userId) return;
-
-    try {
-      const newPlan = assessment.plan.map((step, i) => 
-        i === stepIndex ? { ...step, rating } : step
-      );
-      
-      const assessmentRef = doc(db, 'assessments', assessment.id);
-      await updateDoc(assessmentRef, { plan: newPlan });
-      
-      // Local state update happens via onSnapshot listener implicitly if set up correctly, 
-      // but we should ensure the assessment state reflects it immediately if needed 
-      // or just wait for snapshot. Since we use onSnapshot for history but maybe not for the current active assessment if it was just created.
-      // Wait, let's check how current assessment state is managed.
-      setAssessment(prev => prev ? { ...prev, plan: newPlan } : prev);
-    } catch (error) {
-      handleFirestoreError(error, 'update', `assessments/${assessment.id}`);
     }
   };
 
@@ -507,6 +520,38 @@ export default function App() {
     doc.save(`CATALYST_AI_Report_${assessment.id?.substring(0, 8)}.pdf`);
   };
 
+  const handleReset = () => {
+    setAssessment(null);
+    setJd('');
+    setJdInputMode('choice');
+    setResume('');
+    setUploadedFileName(null);
+    setUploadedJdFileName(null);
+    setResumeInputMode('choice');
+    setChatMessages([]);
+    if (isSharedMode) {
+      window.history.replaceState({}, '', window.location.pathname);
+      setIsSharedMode(false);
+    }
+  };
+
+  const handleSignIn = async () => {
+    if (isSigningIn) return;
+    setIsSigningIn(true);
+    try {
+      await signInWithGoogle();
+    } catch (error: any) {
+      console.error("Sign in error:", error);
+      // Suppress specific errors that are expected or common in popup flows
+      if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
+        return;
+      }
+      setAssessmentError("Authentication sequence interrupted. Please check your connection and retry.");
+    } finally {
+      setIsSigningIn(false);
+    }
+  };
+
   const scrollToBottom = () => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -525,11 +570,24 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-grid p-6 md:p-10 flex flex-col font-inter">
+      <div className="scanline-effect" />
+      
+      {/* Background elements */}
+      <div className="fixed inset-0 neural-grid opacity-30 pointer-events-none" />
+      <div className="fixed inset-0 bg-gradient-to-b from-transparent via-accent/[0.02] to-transparent pointer-events-none" />
+
       {/* Header */}
-      <header className="flex justify-between items-start z-10 mb-12">
+      <header className="flex justify-between items-center z-10 mb-12 relative px-4">
         <div className="space-y-1">
-          <p className="text-[10px] tracking-[0.4em] uppercase opacity-50">Catalyst AI / Skill Assessment Agent</p>
-          <h1 className="text-4xl font-semibold tracking-tighter">CATALYST:v1</h1>
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-accent/20 flex items-center justify-center border border-accent/20 shadow-[0_0_15px_rgba(var(--accent-rgb),0.2)]">
+              <BrainCircuit className="w-5 h-5 accent-text" />
+            </div>
+            <div>
+              <p className="text-[10px] tracking-[0.3em] uppercase opacity-40 font-bold">Neural Protocol / v0.9.4</p>
+              <h1 className="text-2xl font-black tracking-tight text-white flex items-center gap-1">CATALYST<span className="opacity-20">_</span>AI</h1>
+            </div>
+          </div>
         </div>
         
         <div className="flex items-center gap-6">
@@ -568,10 +626,16 @@ export default function App() {
             </div>
           ) : (
             <button 
-              onClick={signInWithGoogle}
-              className="px-6 py-2 bg-white text-black font-bold text-xs uppercase tracking-widest hover:bg-accent transition-colors rounded-lg flex items-center gap-2"
+              onClick={handleSignIn}
+              disabled={isSigningIn}
+              className={`px-6 py-2 rounded-lg flex items-center gap-2 font-bold text-xs uppercase tracking-widest transition-all ${
+                isSigningIn 
+                  ? 'bg-white/10 text-white/20 cursor-wait' 
+                  : 'bg-white text-black hover:bg-accent'
+              }`}
             >
-              <User className="w-4 h-4" /> Sign In
+              {isSigningIn ? <Loader2 className="w-4 h-4 animate-spin" /> : <User className="w-4 h-4" />}
+              {isSigningIn ? 'Authenticating...' : 'Sign In'}
             </button>
           )}
         </div>
@@ -630,16 +694,7 @@ export default function App() {
               </div>
               
               <button 
-                onClick={() => {
-                  setAssessment(null);
-                  setJd('');
-                  setJdInputMode('choice');
-                  setResume('');
-                  setUploadedFileName(null);
-                  setUploadedJdFileName(null);
-                  setResumeInputMode('choice');
-                  setShowHistory(false);
-                }}
+                onClick={handleReset}
                 className="mt-6 w-full py-4 border border-main rounded-xl text-[10px] uppercase font-bold tracking-widest hover:bg-accent/5 flex items-center justify-center gap-2"
               >
                 <Plus className="w-4 h-4" /> New Assessment
@@ -648,373 +703,360 @@ export default function App() {
           )}
         </AnimatePresence>
 
-        <div className="absolute -left-20 top-1/2 -translate-y-1/2 huge-text opacity-5 select-none pointer-events-none hidden lg:block">
-          ASSESS
+        <div className="absolute -left-20 top-1/2 -translate-y-1/2 huge-display opacity-[0.03] select-none pointer-events-none hidden lg:block vertical-text tracking-[0.5em]">
+          NEURAL_SYNAPSE
         </div>
 
         {!assessment ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start relative z-10 py-12">
-            <div className="space-y-8">
-              <div className="space-y-2">
-                <p className="text-xs uppercase tracking-widest accent-text font-semibold flex items-center gap-2">
-                  <BrainCircuit className="w-4 h-4" /> Cognitive Analysis
-                </p>
-                <h2 className="text-6xl font-extrabold tracking-tighter leading-none">
-                  Assess Real <br /> Proficiency.
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start relative z-10 py-12 px-4"
+          >
+            <div className="lg:col-span-5 space-y-10">
+              <div className="space-y-6">
+                <motion.div 
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="inline-flex items-center gap-2 px-3 py-1 bg-accent/10 border border-accent/20 rounded-full"
+                >
+                  <span className="w-2 h-2 bg-accent rounded-full animate-pulse shadow-[0_0_8px_var(--accent)]" />
+                  <p className="text-[10px] uppercase tracking-widest text-accent font-black">Neural Cognitive Core Active</p>
+                </motion.div>
+                
+                <h2 className="huge-display accent-glow text-white">
+                  Map Your <br />
+                  <span className="text-accent">Neural</span> <br />
+                  Proficiency.
                 </h2>
-                <p className="text-dim text-lg max-w-md pt-4">
-                  Go beyond claims. Catalyst parses your resume against any job description to map your true capabilities and chart your path forward.
+                
+                <p className="text-dim text-lg max-w-md font-medium leading-relaxed opacity-80">
+                  Transcend basic keyword matching. Catalyst synthesizes your professional DNA against global benchmarks to extract your true technical displacement.
                 </p>
-                {!user && (
-                    <p className="text-accent/60 text-xs font-bold uppercase tracking-widest pt-4">
-                        Sign in to save your progress
-                    </p>
-                )}
               </div>
 
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 text-dim opacity-60 text-xs uppercase tracking-widest font-bold">
-                  <span className="w-8 h-[1px] bg-border-color" /> Hardware Requirements
-                </div>
-                <div className="flex gap-4">
-                  <div className="p-4 border-thin glass rounded-xl flex-1 space-y-2">
-                    <Search className="w-5 h-5 opacity-40" />
-                    <p className="text-xs font-semibold">JD Analysis</p>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-6 border-thin glass rounded-2xl space-y-3 interactive-glow group transition-all">
+                  <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center group-hover:bg-accent/10 transition-colors">
+                    <Cpu className="w-5 h-5 opacity-40 group-hover:opacity-100 group-hover:accent-text transition-all" />
                   </div>
-                  <div className="p-4 border-thin glass rounded-xl flex-1 space-y-2">
-                    <User className="w-5 h-5 opacity-40" />
-                    <p className="text-xs font-semibold">Resume Map</p>
+                  <div>
+                    <h4 className="text-xs font-black uppercase tracking-widest mb-1">Deep Synthesizer</h4>
+                    <p className="text-[10px] text-dim font-medium uppercase tracking-wider leading-tight">Extracts abstract competency from raw documentation</p>
+                  </div>
+                </div>
+                <div className="p-6 border-thin glass rounded-2xl space-y-3 interactive-glow group transition-all">
+                  <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center group-hover:bg-accent/10 transition-colors">
+                    <Target className="w-5 h-5 opacity-40 group-hover:opacity-100 group-hover:accent-text transition-all" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black uppercase tracking-widest mb-1">Target Mapping</h4>
+                    <p className="text-[10px] text-dim font-medium uppercase tracking-wider leading-tight">Zero-lag alignment with industry standardized roles</p>
                   </div>
                 </div>
               </div>
+              
+              {!user && (
+                <button 
+                  onClick={handleSignIn}
+                  disabled={isSigningIn}
+                  className={`flex items-center gap-3 px-8 py-5 rounded-2xl transition-all active:scale-95 group font-black uppercase tracking-widest text-xs shadow-2xl ${
+                    isSigningIn 
+                      ? 'bg-white/10 text-white/20' 
+                      : 'bg-white text-black hover:bg-accent'
+                  }`}
+                >
+                  {isSigningIn ? <Loader2 className="w-5 h-5 animate-spin" /> : <User className="w-5 h-5" />} 
+                  {isSigningIn ? 'Processing Auth Gateway...' : 'Initiate Secure Sync'}
+                  {!isSigningIn && <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />}
+                </button>
+              )}
             </div>
 
-            <div className="glass border-thin p-8 rounded-2xl space-y-6">
-              <div className="space-y-4">
-                <div className="space-y-1.5">
-                  <div className="flex justify-between items-end ml-1">
-                    <label className="text-[10px] uppercase tracking-widest opacity-40 font-bold">Job Description</label>
-                    {uploadedJdFileName && (
-                      <button 
-                        onClick={() => {
-                          setUploadedJdFileName(null);
-                          setJdInputMode('text');
-                        }}
-                        className="text-[10px] text-accent hover:opacity-80 flex items-center gap-1 font-bold uppercase tracking-widest mr-3"
-                      >
-                        <FileText className="w-3 h-3" /> Edit Text
-                      </button>
-                    )}
-                    {jdInputMode !== 'choice' && (
-                      <button 
-                        onClick={() => {
-                          setJd('');
-                          setUploadedJdFileName(null);
-                          setJdInputMode('choice');
-                        }}
-                        className="text-[10px] text-rose-400 hover:text-rose-300 flex items-center gap-1 font-bold uppercase tracking-widest"
-                      >
-                        <X className="w-3 h-3" /> Reset Input
-                      </button>
-                    )}
+            <div className="lg:col-span-7">
+              <div className="glass border-thin p-10 rounded-[2.5rem] relative overflow-hidden group shadow-2xl">
+                {/* Visual accents */}
+                <div className="absolute top-0 right-0 w-64 h-64 bg-accent/5 blur-[100px] -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+                <div className="absolute bottom-0 left-0 w-64 h-64 bg-accent/5 blur-[100px] translate-y-1/2 -translate-x-1/2 pointer-events-none" />
+
+                <div className="relative space-y-10">
+                  {/* Step 1: JD */}
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center bg-white/5 p-4 rounded-2xl border-thin">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-black flex items-center justify-center border border-white/10">
+                          <span className="text-[10px] font-black text-accent">01</span>
+                        </div>
+                        <h3 className="text-xs font-black uppercase tracking-[0.2em] text-white/50">Target Protocol (JD)</h3>
+                      </div>
+                      
+                      {jdInputMode !== 'choice' && (
+                        <button 
+                          onClick={() => {
+                            setJd('');
+                            setUploadedJdFileName(null);
+                            setJdInputMode('choice');
+                          }}
+                          className="p-2 hover:bg-rose-500/10 hover:text-rose-400 rounded-lg transition-colors text-white/20"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+
+                    <AnimatePresence mode="wait">
+                      {jdInputMode === 'choice' && (
+                        <motion.div 
+                          key="jd-choice"
+                          initial={{ opacity: 0, scale: 0.95 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 1.05 }}
+                          className="grid grid-cols-2 gap-4"
+                        >
+                          <button
+                            onClick={() => setJdInputMode('pdf')}
+                            className="bg-black/40 border border-white/5 p-8 rounded-3xl flex flex-col items-center gap-4 hover:border-accent/40 hover:bg-accent/5 transition-all group"
+                          >
+                            <Upload className="w-6 h-6 opacity-20 group-hover:opacity-100 group-hover:accent-text transition-all" />
+                            <span className="text-[10px] font-black uppercase tracking-widest text-white/40 group-hover:text-white">Vectorize PDF</span>
+                          </button>
+                          <button
+                            onClick={() => setJdInputMode('text')}
+                            className="bg-black/40 border border-white/5 p-8 rounded-3xl flex flex-col items-center gap-4 hover:border-accent/40 hover:bg-accent/5 transition-all group"
+                          >
+                            <FileText className="w-6 h-6 opacity-20 group-hover:opacity-100 group-hover:accent-text transition-all" />
+                            <span className="text-[10px] font-black uppercase tracking-widest text-white/40 group-hover:text-white">Raw Buffer Input</span>
+                          </button>
+                        </motion.div>
+                      )}
+
+                      {jdInputMode === 'text' && (
+                        <motion.div 
+                          key="jd-text"
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="relative"
+                        >
+                          <textarea 
+                            value={jd}
+                            onChange={(e) => setJd(e.target.value)}
+                            placeholder="Injection sequence: Paste job description here..."
+                            className="w-full h-40 bg-black/40 border border-main rounded-3xl p-6 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-accent transition-all placeholder:opacity-20 text-white resize-none"
+                          />
+                        </motion.div>
+                      )}
+
+                      {jdInputMode === 'pdf' && (
+                        <motion.div 
+                          key="jd-pdf"
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                        >
+                          <div 
+                            onClick={() => jdFileInputRef.current?.click()}
+                            onDragOver={(e) => { e.preventDefault(); setIsDraggingJd(true); }}
+                            onDragLeave={() => setIsDraggingJd(false)}
+                            onDrop={(e) => { e.preventDefault(); setIsDraggingJd(false); onDrop(e, 'jd'); }}
+                            className={`w-full min-h-[160px] border-2 border-dashed rounded-3xl flex flex-col items-center justify-center p-8 transition-all cursor-pointer ${
+                              isDraggingJd ? 'border-accent bg-accent/5 shadow-[0_0_30px_rgba(var(--accent-rgb),0.1)]' : 'border-white/5 hover:border-accent/30 hover:bg-white/5'
+                            }`}
+                          >
+                            <input type="file" ref={jdFileInputRef} onChange={(e) => onFileChange(e, 'jd')} accept=".pdf" className="hidden" />
+                            {isParsingPdf && jdInputMode === 'pdf' ? (
+                                <div className="text-center space-y-4 w-full px-8">
+                                    <Loader2 className="w-8 h-8 animate-spin mx-auto accent-text" />
+                                    <div className="h-1.5 w-full bg-border-color rounded-full overflow-hidden">
+                                        <motion.div animate={{ width: `${parsingProgress}%` }} className="h-full bg-accent" />
+                                    </div>
+                                    <p className="text-[10px] font-black tracking-widest uppercase animate-pulse">Vectorizing Content...</p>
+                                </div>
+                            ) : uploadedJdFileName ? (
+                                <div className="text-center space-y-2">
+                                    <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="w-12 h-12 bg-accent/20 rounded-2xl flex items-center justify-center mx-auto mb-2">
+                                        <CheckCircle2 className="w-6 h-6 text-accent" />
+                                    </motion.div>
+                                    <p className="text-sm font-bold">{uploadedJdFileName}</p>
+                                    <p className="text-[10px] uppercase font-black tracking-[0.2em] opacity-40">Ready for Synapse</p>
+                                </div>
+                            ) : (
+                                <div className="text-center space-y-3 group-hover:scale-105 transition-transform">
+                                    <Upload className="w-10 h-10 opacity-20 mx-auto" />
+                                    <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-40">Drop Target Protocol PDF</p>
+                                </div>
+                            )}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
 
-                  {jdInputMode === 'choice' && (
-                    <div className="grid grid-cols-2 gap-4">
-                      <button
-                        onClick={() => setJdInputMode('pdf')}
-                        className="flex flex-col items-center justify-center gap-3 p-8 bg-subtle border border-main rounded-xl hover:bg-accent/5 hover:border-accent/30 transition-all group"
-                      >
-                        <div className="p-3 rounded-full bg-subtle group-hover:bg-accent/20 transition-colors">
-                          <Upload className="w-6 h-6 opacity-40 group-hover:opacity-100" />
+                  {/* Step 2: Resume */}
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center bg-white/5 p-4 rounded-2xl border-thin">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-black flex items-center justify-center border border-white/10">
+                          <span className="text-[10px] font-black text-accent">02</span>
                         </div>
-                        <span className="text-xs font-bold uppercase tracking-widest">Upload PDF</span>
-                      </button>
-                      <button
-                        onClick={() => setJdInputMode('text')}
-                        className="flex flex-col items-center justify-center gap-3 p-8 bg-subtle border border-main rounded-xl hover:bg-accent/5 hover:border-accent/30 transition-all group"
-                      >
-                        <div className="p-3 rounded-full bg-subtle group-hover:bg-accent/20 transition-colors">
-                          <FileText className="w-6 h-6 opacity-40 group-hover:opacity-100" />
-                        </div>
-                        <span className="text-xs font-bold uppercase tracking-widest">Paste Text</span>
-                      </button>
-                    </div>
-                  )}
-
-                  {jdInputMode === 'pdf' && (
-                    !uploadedJdFileName ? (
-                      <div 
-                        onDragOver={(e) => {
-                          e.preventDefault();
-                          setIsDraggingJd(true);
-                        }}
-                        onDragEnter={() => setIsDraggingJd(true)}
-                        onDragLeave={() => setIsDraggingJd(false)}
-                        onDrop={(e) => {
-                          e.preventDefault();
-                          setIsDraggingJd(false);
-                          onDrop(e, 'jd');
-                        }}
-                        className={`relative group cursor-pointer transition-all ${
-                          isParsingPdf ? 'opacity-50 pointer-events-none' : ''
-                        }`}
-                      >
-                        <input 
-                          type="file" 
-                          ref={jdFileInputRef}
-                          onChange={(e) => onFileChange(e, 'jd')}
-                          accept=".pdf"
-                          className="hidden"
-                        />
-                        <div 
-                          onClick={() => jdFileInputRef.current?.click()}
-                          className={`w-full bg-subtle border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center gap-3 transition-all text-center min-h-[160px] ${
-                            isDraggingJd ? 'border-accent bg-accent/10' : 'border-main hover:border-accent/50 hover:bg-accent/5 group-hover:bg-accent/5'
-                          }`}
-                        >
-                          {isParsingPdf ? (
-                            <div className="w-full space-y-4 px-4">
-                              <div className="flex justify-between items-center mb-1">
-                                <div className="space-y-0.5">
-                                  <p className="text-[10px] uppercase tracking-widest font-bold opacity-40">Mapping Neural Pathways</p>
-                                  <p className="text-[8px] font-bold text-accent uppercase tracking-tighter">
-                                    Est. {Math.max(0, (parsingDetails.total - parsingDetails.current) * 0.3).toFixed(1)}s remaining
-                                  </p>
-                                </div>
-                                <p className="text-xs font-mono text-accent">{parsingProgress}%</p>
-                              </div>
-                              <div className="h-1.5 w-full bg-border-color rounded-full overflow-hidden">
-                                <motion.div 
-                                  initial={{ width: 0 }}
-                                  animate={{ width: `${parsingProgress}%` }}
-                                  className="h-full bg-accent"
-                                />
-                              </div>
-                              <div className="flex justify-between items-center text-[10px] opacity-60 font-semibold italic animate-pulse">
-                                <span>Scanning JD requirements...</span>
-                                <span>{parsingDetails.current} / {parsingDetails.total} pages</span>
-                              </div>
-                            </div>
-                          ) : (
-                            <>
-                              <div className={`p-3 rounded-full transition-colors ${isDraggingJd ? 'bg-accent/30' : 'bg-subtle group-hover:bg-accent/20'}`}>
-                                <Upload className={`w-6 h-6 transition-opacity ${isDraggingJd ? 'opacity-100 text-accent' : 'opacity-40 group-hover:opacity-100'}`} />
-                              </div>
-                              <div className="space-y-1">
-                                <p className={`text-sm font-semibold ${isDraggingJd ? 'text-accent' : ''}`}>
-                                  {isDraggingJd ? 'Release to Upload JD' : 'Upload JD PDF'}
-                                </p>
-                                <p className="text-[10px] opacity-40 uppercase tracking-widest font-bold">or drag and drop here</p>
-                              </div>
-                            </>
-                          )}
-                        </div>
+                        <h3 className="text-xs font-black uppercase tracking-[0.2em] text-white/50">Neural Blueprint (Resume)</h3>
                       </div>
-                    ) : (
-                      <div className="w-full bg-subtle border border-main rounded-xl p-6 flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-lg bg-accent/20 flex items-center justify-center border border-accent/30">
-                          <Target className="w-6 h-6 text-accent" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold truncate text-accent">{uploadedJdFileName}</p>
-                          <p className="text-[10px] opacity-50 uppercase tracking-widest font-bold">JD Vector Successfully Mapped</p>
-                        </div>
-                        <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                      </div>
-                    )
-                  )}
-
-                  {jdInputMode === 'text' && (
-                    <textarea 
-                      value={jd}
-                      onChange={(e) => setJd(e.target.value)}
-                      placeholder="Paste the target Job Description details / role requirements here..."
-                      className="w-full bg-subtle border border-main rounded-lg p-4 text-sm focus:outline-none focus:ring-1 focus:ring-accent min-h-[150px] resize-none"
-                    />
-                  )}
-                </div>
-                <div className="space-y-1.5">
-                  <div className="flex justify-between items-end ml-1">
-                    <label className="text-[10px] uppercase tracking-widest opacity-40 font-bold">Resume / CV</label>
-                    {(uploadedFileName || resumeInputMode !== 'choice') && (
-                      <div className="flex items-center gap-4">
-                        {uploadedFileName && (
-                          <button 
-                            onClick={() => {
-                              setUploadedFileName(null);
-                              setResumeInputMode('text');
-                            }}
-                            className="text-[10px] text-accent hover:opacity-80 flex items-center gap-1 font-bold uppercase tracking-widest"
-                          >
-                            <FileText className="w-3 h-3" /> Edit Text
-                          </button>
-                        )}
+                      
+                      {resumeInputMode !== 'choice' && (
                         <button 
                           onClick={() => {
                             setResume('');
                             setUploadedFileName(null);
                             setResumeInputMode('choice');
                           }}
-                          className="text-[10px] text-rose-400 hover:text-rose-300 flex items-center gap-1 font-bold uppercase tracking-widest"
+                          className="p-2 hover:bg-rose-500/10 hover:text-rose-400 rounded-lg transition-colors text-white/20"
                         >
-                          <X className="w-3 h-3" /> Reset Input
+                          <X className="w-4 h-4" />
                         </button>
-                      </div>
+                      )}
+                    </div>
+
+                    <AnimatePresence mode="wait">
+                      {resumeInputMode === 'choice' && (
+                        <motion.div 
+                          key="resume-choice"
+                          initial={{ opacity: 0, scale: 0.95 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 1.05 }}
+                          className="grid grid-cols-2 gap-4"
+                        >
+                          <button
+                            onClick={() => setResumeInputMode('pdf')}
+                            className="bg-black/40 border border-white/5 p-8 rounded-3xl flex flex-col items-center gap-4 hover:border-accent/40 hover:bg-accent/5 transition-all group"
+                          >
+                            <Upload className="w-6 h-6 opacity-20 group-hover:opacity-100 group-hover:accent-text transition-all" />
+                            <span className="text-[10px] font-black uppercase tracking-widest text-white/40 group-hover:text-white">Vectorize PDF</span>
+                          </button>
+                          <button
+                            onClick={() => setResumeInputMode('text')}
+                            className="bg-black/40 border border-white/5 p-8 rounded-3xl flex flex-col items-center gap-4 hover:border-accent/40 hover:bg-accent/5 transition-all group"
+                          >
+                            <FileText className="w-6 h-6 opacity-20 group-hover:opacity-100 group-hover:accent-text transition-all" />
+                            <span className="text-[10px] font-black uppercase tracking-widest text-white/40 group-hover:text-white">Raw Buffer Input</span>
+                          </button>
+                        </motion.div>
+                      )}
+
+                      {resumeInputMode === 'text' && (
+                        <motion.div 
+                          key="resume-text"
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                        >
+                          <textarea 
+                            value={resume}
+                            onChange={(e) => setResume(e.target.value)}
+                            placeholder="Injection sequence: Paste professional resume here..."
+                            className="w-full h-40 bg-black/40 border border-main rounded-3xl p-6 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-accent transition-all placeholder:opacity-20 text-white resize-none"
+                          />
+                        </motion.div>
+                      )}
+
+                      {resumeInputMode === 'pdf' && (
+                        <motion.div 
+                          key="resume-pdf"
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                        >
+                          <div 
+                            onClick={() => fileInputRef.current?.click()}
+                            onDragOver={(e) => { e.preventDefault(); setIsDraggingResume(true); }}
+                            onDragLeave={() => setIsDraggingResume(false)}
+                            onDrop={(e) => { e.preventDefault(); setIsDraggingResume(false); onDrop(e, 'resume'); }}
+                            className={`w-full min-h-[160px] border-2 border-dashed rounded-3xl flex flex-col items-center justify-center p-8 transition-all cursor-pointer ${
+                              isDraggingResume ? 'border-accent bg-accent/5 shadow-[0_0_30px_rgba(var(--accent-rgb),0.1)]' : 'border-white/5 hover:border-accent/30 hover:bg-white/5'
+                            }`}
+                          >
+                            <input type="file" ref={fileInputRef} onChange={(e) => onFileChange(e, 'resume')} accept=".pdf" className="hidden" />
+                            {isParsingPdf && resumeInputMode === 'pdf' ? (
+                                <div className="text-center space-y-4 w-full px-8">
+                                    <Loader2 className="w-8 h-8 animate-spin mx-auto accent-text" />
+                                    <div className="h-1.5 w-full bg-border-color rounded-full overflow-hidden">
+                                        <motion.div animate={{ width: `${parsingProgress}%` }} className="h-full bg-accent" />
+                                    </div>
+                                    <p className="text-[10px] font-black tracking-widest uppercase animate-pulse">Analyzing Biological Record...</p>
+                                </div>
+                            ) : uploadedFileName ? (
+                                <div className="text-center space-y-2">
+                                    <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="w-12 h-12 bg-accent/20 rounded-2xl flex items-center justify-center mx-auto mb-2">
+                                        <CheckCircle2 className="w-6 h-6 text-accent" />
+                                    </motion.div>
+                                    <p className="text-sm font-bold">{uploadedFileName}</p>
+                                    <p className="text-[10px] uppercase font-black tracking-[0.2em] opacity-40">Blueprint Loaded</p>
+                                </div>
+                            ) : (
+                                <div className="text-center space-y-3 group-hover:scale-105 transition-transform">
+                                    <Upload className="w-10 h-10 opacity-20 mx-auto" />
+                                    <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-40">Drop Neural Blueprint PDF</p>
+                                </div>
+                            )}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+
+                  {/* Submission */}
+                  <div className="pt-6 space-y-4">
+                    {assessmentError && (
+                      <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-3 p-4 bg-rose-500/10 border border-rose-500/20 rounded-2xl mb-6">
+                        <AlertCircle className="w-5 h-5 text-rose-500 flex-shrink-0" />
+                        <p className="text-xs font-semibold text-rose-200">{assessmentError}</p>
+                      </motion.div>
+                    )}
+
+                    <button 
+                      onClick={handleAssessment}
+                      disabled={isLoading || !jd.trim() || !resume.trim()}
+                      className={`w-full py-6 rounded-3xl flex items-center justify-center gap-3 transition-all relative overflow-hidden group shadow-[0_20px_50px_rgba(0,0,0,0.4)] ${
+                        isLoading || !jd.trim() || !resume.trim()
+                          ? 'bg-white/5 text-white/20'
+                          : 'bg-white text-black hover:bg-accent active:scale-[0.98]'
+                      }`}
+                    >
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                          <span className="text-xs uppercase font-black tracking-[0.2em]">Synthesizing Neural Path...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Rocket className="w-5 h-5 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
+                          <span className="text-xs uppercase font-black tracking-[0.2em]">Initiate Deep Analysis</span>
+                        </>
+                      )}
+                    </button>
+                    
+                    <button
+                      onClick={() => {
+                        setJd('');
+                        setJdInputMode('choice');
+                        setResume('');
+                        setResumeInputMode('choice');
+                        setUploadedFileName(null);
+                        setUploadedJdFileName(null);
+                        setAssessmentError(null);
+                      }}
+                      className="w-full py-4 rounded-3xl flex items-center justify-center gap-3 transition-all text-white/40 hover:text-white hover:bg-white/5 text-[10px] uppercase font-black tracking-[0.2em]"
+                    >
+                      <Plus className="w-4 h-4" /> Reset Inputs
+                    </button>
+                    
+                    {isLoading && loadingStage && (
+                      <p className="text-center text-[10px] uppercase tracking-[0.3em] font-black text-accent mt-4 animate-pulse">
+                        {loadingStage}
+                      </p>
                     )}
                   </div>
-                  
-                  {resumeInputMode === 'choice' && (
-                    <div className="grid grid-cols-2 gap-4">
-                      <button
-                        onClick={() => setResumeInputMode('pdf')}
-                        className="flex flex-col items-center justify-center gap-3 p-8 bg-subtle border border-main rounded-xl hover:bg-accent/5 hover:border-accent/30 transition-all group"
-                      >
-                        <div className="p-3 rounded-full bg-subtle group-hover:bg-accent/20 transition-colors">
-                          <Upload className="w-6 h-6 opacity-40 group-hover:opacity-100" />
-                        </div>
-                        <span className="text-xs font-bold uppercase tracking-widest">Upload PDF</span>
-                      </button>
-                      <button
-                        onClick={() => setResumeInputMode('text')}
-                        className="flex flex-col items-center justify-center gap-3 p-8 bg-subtle border border-main rounded-xl hover:bg-accent/5 hover:border-accent/30 transition-all group"
-                      >
-                        <div className="p-3 rounded-full bg-subtle group-hover:bg-accent/20 transition-colors">
-                          <FileText className="w-6 h-6 opacity-40 group-hover:opacity-100" />
-                        </div>
-                        <span className="text-xs font-bold uppercase tracking-widest">Paste Text</span>
-                      </button>
-                    </div>
-                  )}
-
-                  {resumeInputMode === 'pdf' && (
-                    !uploadedFileName ? (
-                      <div 
-                        onDragOver={(e) => {
-                          e.preventDefault();
-                          setIsDraggingResume(true);
-                        }}
-                        onDragEnter={() => setIsDraggingResume(true)}
-                        onDragLeave={() => setIsDraggingResume(false)}
-                        onDrop={(e) => {
-                          e.preventDefault();
-                          setIsDraggingResume(false);
-                          onDrop(e, 'resume');
-                        }}
-                        className={`relative group cursor-pointer transition-all ${
-                          isParsingPdf ? 'opacity-50 pointer-events-none' : ''
-                        }`}
-                      >
-                        <input 
-                          type="file" 
-                          ref={fileInputRef}
-                          onChange={(e) => onFileChange(e, 'resume')}
-                          accept=".pdf"
-                          className="hidden"
-                        />
-                        
-                        <div 
-                          onClick={() => fileInputRef.current?.click()}
-                          className={`w-full bg-subtle border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center gap-3 transition-all text-center min-h-[160px] ${
-                            isDraggingResume ? 'border-accent bg-accent/10' : 'border-main hover:border-accent/50 hover:bg-accent/5 group-hover:bg-accent/5'
-                          }`}
-                        >
-                          {isParsingPdf ? (
-                            <div className="w-full space-y-4 px-4">
-                              <div className="flex justify-between items-center mb-1">
-                                <div className="space-y-0.5">
-                                  <p className="text-[10px] uppercase tracking-widest font-bold opacity-40">Deconstructing Resume Vector</p>
-                                  <p className="text-[8px] font-bold text-accent uppercase tracking-tighter">
-                                    Est. {Math.max(0, (parsingDetails.total - parsingDetails.current) * 0.3).toFixed(1)}s remaining
-                                  </p>
-                                </div>
-                                <p className="text-xs font-mono text-accent">{parsingProgress}%</p>
-                              </div>
-                              <div className="h-1.5 w-full bg-border-color rounded-full overflow-hidden">
-                                <motion.div 
-                                  initial={{ width: 0 }}
-                                  animate={{ width: `${parsingProgress}%` }}
-                                  className="h-full bg-accent"
-                                />
-                              </div>
-                              <div className="flex justify-between items-center text-[10px] opacity-60 font-semibold italic animate-pulse">
-                                <span>Synthesizing personal records...</span>
-                                <span>{parsingDetails.current} / {parsingDetails.total} pages</span>
-                              </div>
-                            </div>
-                          ) : (
-                            <>
-                              <div className={`p-3 rounded-full transition-colors ${isDraggingResume ? 'bg-accent/30' : 'bg-subtle group-hover:bg-accent/20'}`}>
-                                <Upload className={`w-6 h-6 transition-opacity ${isDraggingResume ? 'opacity-100 text-accent' : 'opacity-40 group-hover:opacity-100'}`} />
-                              </div>
-                              <div className="space-y-1">
-                                <p className={`text-sm font-semibold ${isDraggingResume ? 'text-accent' : ''}`}>
-                                  {isDraggingResume ? 'Release to Upload Resume' : 'Upload Resume PDF'}
-                                </p>
-                                <p className="text-[10px] opacity-40 uppercase tracking-widest font-bold">or drag and drop here</p>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="w-full bg-subtle border border-main rounded-xl p-6 flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-lg bg-accent/20 flex items-center justify-center border border-accent/30">
-                          <FileText className="w-6 h-6 text-accent" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold truncate text-accent">{uploadedFileName}</p>
-                          <p className="text-[10px] opacity-50 uppercase tracking-widest font-bold">Securely Cached for Analysis</p>
-                        </div>
-                        <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                      </div>
-                    )
-                  )}
-
-                  {resumeInputMode === 'text' && (
-                    <textarea 
-                      value={resume}
-                      onChange={(e) => setResume(e.target.value)}
-                      placeholder="Paste your professional experience details manually here..."
-                      className="w-full bg-subtle border border-main rounded-lg p-4 text-sm focus:outline-none focus:ring-1 focus:ring-accent min-h-[120px] resize-none"
-                    />
-                  )}
                 </div>
               </div>
-
-              {assessmentError && (
-                <motion.div 
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  className="bg-rose-500/10 border border-rose-500/20 p-4 rounded-lg flex gap-3 items-start"
-                >
-                  <AlertCircle className="w-5 h-5 text-rose-500 flex-shrink-0 mt-0.5" />
-                  <p className="text-xs text-rose-200/80 leading-relaxed font-medium">
-                    {assessmentError}
-                  </p>
-                </motion.div>
-              )}
-
-              <button 
-                onClick={handleAssessment}
-                disabled={isLoading || !jd || !resume}
-                className="w-full py-4 bg-white text-black font-bold text-xs uppercase tracking-widest hover:bg-accent transition-colors disabled:opacity-50 disabled:hover:bg-white flex items-center justify-center gap-2"
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Processing Neural Map...
-                  </>
-                ) : (
-                  <>
-                    Initialize Assessment <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
-              </button>
             </div>
-          </div>
+          </motion.div>
         ) : (
-          <div className="grid grid-cols-12 gap-8 items-start relative z-10 py-4">
+          <div className="space-y-8 relative z-10 py-4 px-4">
             {/* Copy Toast */}
             <AnimatePresence>
               {showCopyToast && (
@@ -1022,393 +1064,583 @@ export default function App() {
                   initial={{ opacity: 0, y: 20, x: '-50%' }}
                   animate={{ opacity: 1, y: 0, x: '-50%' }}
                   exit={{ opacity: 0, y: 20, x: '-50%' }}
-                  className="fixed bottom-10 left-1/2 z-[100] px-6 py-3 bg-accent text-white dark:text-black font-bold text-xs uppercase tracking-widest rounded-full shadow-lg flex items-center gap-2"
+                  className="fixed bottom-10 left-1/2 z-[100] px-6 py-3 bg-accent text-black font-black text-[10px] uppercase tracking-widest rounded-full shadow-[0_0_30px_rgba(var(--accent-rgb),0.4)] flex items-center gap-2"
                 >
                   <Copy className="w-4 h-4" />
-                  Share Link Copied
+                  Synaptic Link Copied
                 </motion.div>
               )}
             </AnimatePresence>
 
-            {/* Left Column: Dashboard */}
-            <div className="col-span-12 lg:col-span-7 space-y-8">
-              <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-3">
-                    <p className="text-xs uppercase tracking-widest accent-text font-semibold">
-                      {isSharedMode ? 'Shared Assessment' : 'Assessment Results'}
+            {/* Header / Stats */}
+            <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-10">
+              <div className="space-y-8">
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="px-3 py-1 bg-accent/10 border border-accent/20 rounded-full">
+                    <p className="text-[10px] uppercase tracking-widest accent-text font-black">
+                      {isSharedMode ? 'Extracted Protocol' : 'Neural Career Intelligence'}
                     </p>
-                    {assessment.id && (
-                      <div className="flex gap-2">
-                        <button 
-                          onClick={handleShare}
-                          className="flex items-center gap-1.5 text-[10px] uppercase font-bold tracking-widest px-2 py-1 bg-subtle border border-main rounded hover:bg-accent/10 transition-colors"
-                          title="Copy shareable link"
-                        >
-                          <Share className="w-3 h-3 text-accent" /> Share
-                        </button>
-                        <button 
-                          onClick={handleDownloadReport}
-                          className="flex items-center gap-1.5 text-[10px] uppercase font-bold tracking-widest px-2 py-1 bg-subtle border border-main rounded hover:bg-accent/10 transition-colors"
-                          title="Download PDF Report"
-                        >
-                          <Download className="w-3 h-3 text-accent" /> Report
-                        </button>
-                      </div>
-                    )}
                   </div>
-                  <h2 className="text-6xl font-extrabold tracking-tighter leading-none">Proficiency Map</h2>
-                </div>
-                <div className="flex gap-12 pt-4">
-                  <div className="space-y-1">
-                    <p className="text-6xl font-bold flex items-baseline">
-                      {assessment.score}
-                      <span className="text-2xl opacity-50 ml-1">%</span>
-                    </p>
-                    <p className="text-[10px] uppercase tracking-widest opacity-40 font-bold">Skill Match Score</p>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-6xl font-bold">
-                      {assessment.skills.filter(s => s.proficiency < 70).length.toString().padStart(2, '0')}
-                    </p>
-                    <p className="text-[10px] uppercase tracking-widest opacity-40 font-bold">Identified Gaps</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mt-8 mb-4">
-                <div className="relative flex-1 max-w-sm">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 opacity-30" />
-                  <input 
-                    type="text"
-                    value={skillSearchQuery}
-                    onChange={(e) => setSkillSearchQuery(e.target.value)}
-                    placeholder="Search identified skills..."
-                    className="w-full bg-subtle border border-main rounded-lg pl-9 pr-4 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-accent placeholder:opacity-30"
-                  />
-                  {skillSearchQuery && (
+                  {assessment.id && (
                     <button 
-                      onClick={() => setSkillSearchQuery('')}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 opacity-40 hover:opacity-100"
+                      onClick={handleShare}
+                      className="flex items-center gap-2 text-[9px] uppercase font-black tracking-widest px-3 py-1 bg-white/5 border border-white/5 rounded-full hover:bg-accent hover:text-black transition-all"
                     >
-                      <X className="w-3 h-3" />
+                      <Share className="w-3 h-3" /> Share Result
                     </button>
                   )}
-                </div>
-                <button 
-                  onClick={() => setSortByGap(!sortByGap)}
-                  className={`text-[10px] uppercase tracking-widest font-bold px-3 py-2 rounded-lg border transition-all flex items-center gap-2 ${
-                    sortByGap ? 'border-accent text-accent bg-accent/10' : 'border-main text-dim hover:text-main'
-                  }`}
-                >
-                  <Filter className="w-3 h-3" />
-                  {sortByGap ? 'Prioritizing Critical Gaps' : 'Sort by Critical'}
-                </button>
-              </div>
-
-              {/* Categorized Skill Matrix */}
-              <div className="space-y-12">
-                {(() => {
-                  let filtered = [...assessment.skills];
-                  if (skillSearchQuery) {
-                    filtered = filtered.filter(s => 
-                      s.name.toLowerCase().includes(skillSearchQuery.toLowerCase())
-                    );
-                  }
-
-                  const gapSkills = filtered.filter(s => s.proficiency < 70);
-                  const matchedSkills = filtered.filter(s => s.proficiency >= 70);
-
-                  const renderGroup = (skills: any[], title: string, status: string, colorClass: string) => (
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-1 h-3 rounded-full ${colorClass}`} />
-                        <h3 className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">{title}</h3>
-                        <div className="flex-1 h-px bg-border-color" />
-                        <span className={`px-2 py-0.5 rounded text-[8px] font-bold uppercase ${colorClass}/20 ${colorClass.replace('bg-', 'text-')}`}>
-                          {skills.length} FOUND
-                        </span>
-                      </div>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {skills.map((skill, index) => {
-                          const isExpanded = expandedSkill === skill.name;
-                          return (
-                            <motion.div 
-                              key={skill.name}
-                              layout
-                              onClick={() => setExpandedSkill(isExpanded ? null : skill.name)}
-                              className={`glass border-thin p-4 rounded-xl space-y-3 relative overflow-hidden cursor-pointer hover:bg-accent/5 transition-all ${
-                                isExpanded ? 'col-span-full md:col-span-2 ring-1 ring-main' : ''
-                              }`}
-                            >
-                              <div className="flex justify-between items-start">
-                                <p className="font-semibold text-sm">{skill.name}</p>
-                                {skill.proficiency >= 70 ? (
-                                  <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                                ) : (
-                                  <AlertCircle className="w-4 h-4 text-amber-500/50" />
-                                )}
-                              </div>
-                              <div className="space-y-1.5">
-                                <div className="h-1.5 w-full bg-border-color rounded-full overflow-hidden relative">
-                                  <motion.div 
-                                    initial={{ width: 0 }}
-                                    animate={{ width: `${skill.proficiency}%` }}
-                                    className={`h-full ${skill.proficiency >= 70 ? 'bg-emerald-500' : 'bg-amber-500'}`} 
-                                  />
-                                  {skill.industryBenchmark !== undefined && (
-                                    <div 
-                                      className="absolute top-0 w-0.5 h-full bg-accent shadow-[0_0_8px_var(--accent)] z-10"
-                                      style={{ left: `${skill.industryBenchmark}%` }}
-                                      title={`Industry Benchmark: ${skill.industryBenchmark}%`}
-                                    />
-                                  )}
-                                </div>
-                                <div className="flex justify-between items-center text-[10px] opacity-40 font-mono">
-                                  <span className="uppercase tracking-widest">
-                                    {isExpanded ? 'Analysis Complete' : 'Readiness'}
-                                    {skill.industryBenchmark !== undefined && (
-                                      <span className="ml-2 text-accent font-bold">(Bench: {skill.industryBenchmark}%)</span>
-                                    )}
-                                  </span>
-                                  <span>{skill.proficiency}% ATTAINED</span>
-                                </div>
-                              </div>
-
-                              <AnimatePresence>
-                                {isExpanded && (
-                                  <motion.div 
-                                    initial={{ opacity: 0, height: 0 }}
-                                    animate={{ opacity: 1, height: 'auto' }}
-                                    className="pt-4 border-t border-main"
-                                  >
-                                    <div className="space-y-4">
-                                      <div className="space-y-1">
-                                        <p className="text-[10px] uppercase font-bold opacity-30">Analysis Outcome</p>
-                                        <p className="text-xs text-main opacity-80 leading-relaxed italic">{skill.resumeNotes}</p>
-                                      </div>
-                                      {skill.gapDescription && (
-                                        <div className="space-y-1">
-                                          <p className="text-[10px] uppercase font-bold text-amber-500/70">Delta Required</p>
-                                          <p className="text-xs text-dim leading-relaxed">{skill.gapDescription}</p>
-                                        </div>
-                                      )}
-                                    </div>
-                                  </motion.div>
-                                )}
-                              </AnimatePresence>
-                            </motion.div>
-                          );
-                        })}
-                      </div>
-                      {skills.length === 0 && (
-                        <p className="text-[10px] opacity-20 italic py-2 text-center">No {title.toLowerCase()} identified in current mapping.</p>
-                      )}
-                    </div>
-                  );
-
-                  return (
-                    <>
-                      {renderGroup(gapSkills, "Critical Gaps", "GAP", "bg-amber-500")}
-                      {renderGroup(matchedSkills, "Matched Assets", "MATCH", "bg-emerald-500")}
-                    </>
-                  );
-                })()}
-              </div>
-
-              {/* Chat Assessment */}
-              <div className="glass border-thin p-6 rounded-2xl flex flex-col h-[400px]">
-                <div className="flex items-center gap-2 mb-4 border-b border-main pb-4">
-                  <BrainCircuit className="w-5 h-5 accent-text" />
-                  <h3 className="text-xs uppercase tracking-widest font-bold">Conversational Intelligence</h3>
-                </div>
-                <div className="flex-1 overflow-y-auto space-y-4 mb-4 pr-2">
-                  {chatMessages.map((msg, i) => (
-                    <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[80%] rounded-lg px-4 py-2 text-sm ${
-                        msg.role === 'user' 
-                          ? 'bg-accent text-white dark:text-black font-medium' 
-                          : 'bg-subtle border border-main text-main'
-                      }`}>
-                        {msg.role === 'user' ? (
-                          msg.content
-                        ) : (
-                          <div className="markdown-body">
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                              {msg.content}
-                            </ReactMarkdown>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                  {isTyping && (
-                    <div className="flex justify-start">
-                      <div className="bg-subtle border border-main text-main rounded-2xl px-5 py-4 min-w-[240px] space-y-3">
-                        <div className="flex items-center gap-3">
-                          <div className="flex gap-1">
-                            <motion.span 
-                              animate={{ opacity: [0.4, 1, 0.4], y: [0, -2, 0] }} 
-                              transition={{ repeat: Infinity, duration: 0.8, times: [0, 0.5, 1] }} 
-                              className="w-1.5 h-1.5 bg-accent rounded-full" 
-                            />
-                            <motion.span 
-                              animate={{ opacity: [0.4, 1, 0.4], y: [0, -2, 0] }} 
-                              transition={{ repeat: Infinity, duration: 0.8, delay: 0.2, times: [0, 0.5, 1] }} 
-                              className="w-1.5 h-1.5 bg-accent rounded-full" 
-                            />
-                            <motion.span 
-                              animate={{ opacity: [0.4, 1, 0.4], y: [0, -2, 0] }} 
-                              transition={{ repeat: Infinity, duration: 0.8, delay: 0.4, times: [0, 0.5, 1] }} 
-                              className="w-1.5 h-1.5 bg-accent rounded-full" 
-                            />
-                          </div>
-                          <p className="text-[10px] uppercase tracking-widest font-bold opacity-40">Neural core analyzing...</p>
-                        </div>
-                        <div className="space-y-1.5">
-                          <div className="h-1 w-full bg-accent/10 rounded-full overflow-hidden">
-                            <motion.div 
-                              initial={{ width: 0 }}
-                              animate={{ width: "100%" }}
-                              transition={{ duration: 8, ease: "linear" }}
-                              className="h-full bg-accent/30"
-                            />
-                          </div>
-                          <div className="flex justify-between items-center text-[8px] opacity-30 font-bold uppercase tracking-tighter">
-                            <span>Vector Search</span>
-                            <span>Est. 5-8s</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  <div ref={chatEndRef} />
-                </div>
-                <div className="flex gap-2">
-                  <input 
-                    type="text" 
-                    value={currentInput}
-                    onChange={(e) => setCurrentInput(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                    placeholder={user ? "Ask about a skill..." : "Sign in to chat"}
-                    disabled={!user}
-                    className="flex-1 bg-subtle border border-main rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-accent disabled:opacity-50"
-                  />
                   <button 
-                    onClick={handleSendMessage}
-                    disabled={!user}
-                    className="p-3 bg-white text-black rounded-lg hover:bg-accent transition-colors disabled:opacity-50"
+                    onClick={handleReset}
+                    className="flex items-center gap-2 text-[9px] uppercase font-black tracking-widest px-4 py-1 bg-white/10 border border-white/10 rounded-full hover:bg-rose-500 hover:text-white transition-all ml-auto md:ml-0"
                   >
-                    <Send className="w-5 h-5" />
+                    <Plus className="w-3 h-3" /> New Analysis
                   </button>
+                </div>
+                
+                <div className="space-y-2">
+                  <h2 className="text-6xl font-black tracking-tighter leading-none italic uppercase">Neural Eval<span className="text-accent italic">_</span>01</h2>
+                  <p className="text-[10px] text-dim uppercase tracking-[0.5em] font-black opacity-30 mt-4">Interactive Domain Mastery & Gap Synthesis</p>
+                </div>
+                
+                {/* Tab Navigation */}
+                <div className="flex items-center gap-1 bg-white/5 backdrop-blur-3xl p-1.5 rounded-2xl border border-white/5 w-fit">
+                  {[
+                    { id: 'overview', label: 'Overview', icon: Layout },
+                    { id: 'skills', label: 'Skill Mesh', icon: BrainCircuit },
+                    { id: 'interview', label: 'Interview', icon: MessageSquareCode },
+                    { id: 'plan', label: 'Evolution', icon: Rocket }
+                  ].map(tab => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id as Tab)}
+                      className={`flex items-center gap-2 px-6 py-3 rounded-xl text-[9px] uppercase tracking-[0.2em] font-black transition-all relative ${
+                        activeTab === tab.id 
+                          ? 'text-black z-10' 
+                          : 'text-white/40 hover:text-white'
+                      }`}
+                    >
+                      {activeTab === tab.id && (
+                        <motion.div 
+                          layoutId="activeTab"
+                          className="absolute inset-0 bg-accent rounded-xl -z-10 shadow-[0_0_20px_rgba(var(--accent-rgb),0.4)]"
+                          transition={{ type: "spring", bounce: 0.1, duration: 0.5 }}
+                        />
+                      )}
+                      <tab.icon className={`w-3.5 h-3.5 ${activeTab === tab.id ? 'text-black' : 'text-accent opacity-40'}`} />
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex gap-16 pt-4 lg:pb-4 border-l border-white/5 pl-10">
+                <div className="space-y-1">
+                  <p className="text-7xl font-black flex items-baseline accent-glow">
+                    {assessment.score}
+                    <span className="text-2xl opacity-20 ml-1 font-medium">%</span>
+                  </p>
+                  <p className="text-[9px] uppercase tracking-[0.3em] opacity-30 font-black">Synaptic Match Rating</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-7xl font-black opacity-20">
+                    {assessment.skills.filter(s => s.proficiency < 70).length.toString().padStart(2, '0')}
+                  </p>
+                  <p className="text-[9px] uppercase tracking-[0.3em] opacity-30 font-black">Critical Gaps</p>
                 </div>
               </div>
             </div>
 
-            {/* Right Column: Learning Path */}
-            <div className="col-span-12 lg:col-span-5 glass border-thin p-8 rounded-2xl space-y-8 sticky top-10">
-              <div className="flex items-center justify-between border-b border-main pb-4">
-                <div className="flex items-center gap-2">
-                  <BookOpen className="w-5 h-5 accent-text" />
-                  <h3 className="text-xs uppercase tracking-widest opacity-60 font-bold">Personalized Learning Path</h3>
-                </div>
-              </div>
-
-              <div className="space-y-6 max-h-[500px] overflow-y-auto pr-2">
-                {assessment.plan.map((step, i) => (
+            {/* Content Container */}
+            <div className="min-h-[500px]">
+              <AnimatePresence mode="wait">
+                {activeTab === 'overview' && (
                   <motion.div 
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: i * 0.1 }}
-                    key={i} 
-                    className="space-y-2 group"
+                    key="overview"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    className="grid grid-cols-1 md:grid-cols-3 gap-8"
                   >
-                    <div className="flex items-start justify-between">
-                      <div className="space-y-1">
-                        <p className="text-sm font-semibold group-hover:accent-text transition-colors">{step.topic}</p>
-                        <div className="flex flex-wrap items-center gap-3 opacity-60 text-[10px]">
-                          <div className="flex items-center gap-1">
-                            <FileText className="w-3 h-3" />
-                            <span>{step.resource}</span>
+                    <div className="md:col-span-2 space-y-8">
+                      <div className="glass border-thin p-12 rounded-[3rem] space-y-8 relative overflow-hidden group shadow-2xl">
+                        <div className="absolute top-0 right-0 p-12 opacity-[0.02] group-hover:opacity-[0.05] transition-opacity">
+                          <Cpu className="w-80 h-80 -mr-24 -mt-24" />
+                        </div>
+                        
+                        <div className="space-y-4">
+                          <h3 className="text-4xl font-black tracking-tighter uppercase">Executive Synthesis</h3>
+                          <div className="w-20 h-1 bg-accent/20 rounded-full" />
+                        </div>
+                        
+                        <p className="text-dim leading-relaxed text-xl max-w-2xl font-medium">
+                          Profile congruence verified at <span className="text-white font-black underline decoration-accent underline-offset-8">{assessment.score}% capacity</span>. 
+                          Neural Core detects <span className="text-white font-black">{assessment.skills.length} distinct competence nodes</span> requiring cross-domain validation and has proposed an optimal mitigation sequence.
+                        </p>
+                        
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-6">
+                          <div className="bg-emerald-500/5 border border-emerald-500/10 p-8 rounded-[2rem] flex flex-col justify-between interactive-glow">
+                            <div>
+                              <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center mb-4">
+                                <Trophy className="w-5 h-5 text-emerald-500" />
+                              </div>
+                              <p className="text-[9px] uppercase tracking-[0.3em] text-emerald-500 font-black mb-2">Core Domain Dominance</p>
+                              <p className="text-2xl font-black tracking-tight uppercase">
+                                {[...assessment.skills].sort((a,b) => b.proficiency - a.proficiency)[0]?.name}
+                              </p>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-1 text-accent">
-                            <span className="font-bold">Cost:</span>
-                            <span>{step.cost}</span>
+                          <div className="bg-amber-500/5 border border-amber-500/10 p-8 rounded-[2rem] flex flex-col justify-between interactive-glow">
+                            <div>
+                              <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center mb-4">
+                                <AlertCircle className="w-5 h-5 text-amber-500" />
+                              </div>
+                              <p className="text-[9px] uppercase tracking-[0.3em] text-amber-500 font-black mb-2">Primary Evolutionary Gap</p>
+                              <p className="text-2xl font-black tracking-tight uppercase">
+                                {[...assessment.skills].sort((a,b) => a.proficiency - b.proficiency)[0]?.name}
+                              </p>
+                            </div>
                           </div>
                         </div>
-                        {step.prerequisites && (
-                          <p className="text-[10px] opacity-40 leading-relaxed italic">
-                            <span className="font-bold uppercase tracking-tighter not-italic mr-1">Prereq:</span> 
-                            {step.prerequisites}
+                      </div>
+                      
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+                        <div className="glass border-thin p-10 rounded-[2.5rem] flex items-center gap-6 interactive-glow">
+                          <div className="w-16 h-16 bg-accent/10 border border-accent/20 rounded-2xl flex items-center justify-center shadow-lg">
+                            <Target className="w-8 h-8 accent-text" />
+                          </div>
+                          <div>
+                            <p className="text-[9px] opacity-30 uppercase tracking-[0.3em] font-black mb-1">Session Integrity</p>
+                            <p className="text-2xl font-black tracking-tight italic">LIVE_DECODE</p>
+                          </div>
+                        </div>
+                        <div className="glass border-thin p-10 rounded-[2.5rem] flex items-center gap-6 interactive-glow">
+                          <div className="w-16 h-16 bg-white/5 border border-white/5 rounded-2xl flex items-center justify-center">
+                            <Cpu className="w-8 h-8 opacity-40 text-white" />
+                          </div>
+                          <div>
+                            <p className="text-[9px] opacity-30 uppercase tracking-[0.3em] font-black mb-1">Engine Protocol</p>
+                            <p className="text-2xl font-black tracking-tight italic">GEMINI_3F</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-8">
+                      <div className="glass border-thin p-10 rounded-[3rem] space-y-10 shadow-2xl relative overflow-hidden h-full">
+                        <div className="space-y-2">
+                          <h3 className="text-[10px] uppercase tracking-[0.4em] font-black text-accent mb-6">Pipeline Commands</h3>
+                          <div className="w-10 h-0.5 bg-accent/40 mb-10" />
+                        </div>
+                        
+                        <div className="space-y-4">
+                          <button 
+                            onClick={() => setActiveTab('interview')}
+                            className="w-full p-6 bg-accent text-black font-black text-[10px] uppercase tracking-[0.2em] rounded-2xl hover:bg-white transition-all flex items-center justify-between group shadow-[0_20px_40px_rgba(var(--accent-rgb),0.3)] active:scale-95"
+                          >
+                            Enter Interview Terminal <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                          </button>
+                          <button 
+                            onClick={() => setActiveTab('plan')}
+                            className="w-full p-6 bg-white/5 border border-white/5 text-white font-black text-[10px] uppercase tracking-[0.2em] rounded-2xl hover:bg-white hover:text-black transition-all flex items-center justify-between active:scale-95"
+                          >
+                            Explore Evolution Path <ArrowRight className="w-4 h-4" />
+                          </button>
+                          <button 
+                            onClick={handleDownloadReport}
+                            className="w-full p-6 bg-black/40 border border-dashed border-white/10 text-white/40 font-black text-[10px] uppercase tracking-[0.2em] rounded-2xl hover:text-accent hover:border-accent transition-all flex items-center justify-between active:scale-95"
+                          >
+                            Export Neural Report <Download className="w-4 h-4" />
+                          </button>
+                          
+                          <div className="pt-10 mt-10 border-t border-white/5">
+                            <button 
+                              onClick={handleReset}
+                              className="w-full p-4 text-[9px] uppercase tracking-[0.3em] text-dim hover:text-rose-500 transition-colors font-black"
+                            >
+                              Flush Neural Buffer [Reset]
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+
+                {activeTab === 'skills' && (
+                  <motion.div 
+                    key="skills"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    className="space-y-12"
+                  >
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 border-b border-white/5 pb-10">
+                      <div>
+                        <h3 className="text-4xl font-black tracking-tighter uppercase">Skill Analysis <span className="text-accent underline decoration-accent/20 underline-offset-8">Gap</span></h3>
+                        <p className="text-[10px] text-dim font-black uppercase tracking-[0.3em] mt-4 opacity-40">Synthesizing resume evidence & target domain parity</p>
+                      </div>
+                      <div className="flex gap-4 items-center">
+                        <div className="relative w-72 group">
+                          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 opacity-20 group-focus-within:opacity-100 transition-opacity" />
+                          <input 
+                            type="text"
+                            value={skillSearchQuery}
+                            onChange={(e) => setSkillSearchQuery(e.target.value)}
+                            placeholder="FILTER NEURAL NODES..."
+                            className="w-full bg-black/40 border border-white/10 rounded-2xl pl-12 pr-6 py-4 text-[10px] uppercase tracking-widest focus:outline-none focus:ring-2 focus:ring-accent transition-all placeholder:opacity-20 text-white"
+                          />
+                        </div>
+                        <button 
+                          onClick={() => setSortByGap(!sortByGap)}
+                          className={`text-[9px] uppercase tracking-widest font-black px-6 py-4 rounded-2xl border transition-all flex items-center gap-3 active:scale-95 ${
+                            sortByGap ? 'border-accent text-accent bg-accent/10 shadow-[0_0_20px_rgba(var(--accent-rgb),0.2)]' : 'border-white/10 text-white/40 hover:text-white hover:bg-white/5'
+                          }`}
+                        >
+                          <Filter className="w-4 h-4" />
+                          {sortByGap ? 'Fixating Critical Gaps' : 'Standard Priority'}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-20">
+                      {(() => {
+                        let filtered = [...assessment.skills];
+                        if (skillSearchQuery) {
+                          filtered = filtered.filter(s => 
+                            s.name.toLowerCase().includes(skillSearchQuery.toLowerCase())
+                          );
+                        }
+
+                        const gapSkills = filtered.filter(s => s.proficiency < 70);
+                        const matchedSkills = filtered.filter(s => s.proficiency >= 70);
+
+                        const renderGroup = (skills: any[], title: string, colorClass: string, glowColor: string) => (
+                          <div className="space-y-8">
+                            <div className="flex items-center gap-6">
+                              <div className={`w-2 h-6 rounded-full ${colorClass} shadow-[0_0_15px_${glowColor}]`} />
+                              <h3 className="text-[11px] font-black uppercase tracking-[0.5em] opacity-40">{title}</h3>
+                              <div className="flex-1 h-px bg-white/5" />
+                              <div className="px-4 py-1.5 rounded-full bg-white/5 border border-white/10">
+                                <span className="text-[10px] font-black uppercase tracking-widest opacity-60">
+                                  {skills.length.toString().padStart(2, '0')} Nodes Detected
+                                </span>
+                              </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                              {skills.map((skill) => (
+                                <motion.div 
+                                  key={skill.name}
+                                  layout
+                                  onClick={() => setExpandedSkill(expandedSkill === skill.name ? null : skill.name)}
+                                  className={`glass border-thin p-8 rounded-[2.5rem] relative overflow-hidden cursor-pointer hover:bg-white/5 transition-all group shadow-xl ${
+                                    expandedSkill === skill.name ? 'ring-2 ring-accent lg:col-span-2' : ''
+                                  }`}
+                                >
+                                  <div className="flex justify-between items-start mb-8">
+                                    <div className="flex flex-col gap-3">
+                                      <h4 className="font-bold text-2xl tracking-tight group-hover:text-accent transition-colors">{skill.name}</h4>
+                                      {skill.isVerified && (
+                                        <span className="flex items-center gap-2 w-fit text-[9px] bg-accent/20 text-accent px-3 py-1.5 rounded-full font-black uppercase tracking-[0.1em] shadow-lg shadow-accent/10 border border-accent/20">
+                                          <BrainCircuit className="w-3.5 h-3.5" />Verified Node
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className={`p-4 rounded-2xl ${skill.proficiency >= 70 ? 'bg-emerald-500/10 text-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.1)]' : 'bg-amber-500/10 text-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.1)]'}`}>
+                                      {skill.proficiency >= 70 ? <CheckCircle2 className="w-6 h-6" /> : <AlertCircle className="w-6 h-6" />}
+                                    </div>
+                                  </div>
+
+                                  <div className="space-y-2 text-right mb-8">
+                                    <p className="text-6xl font-black tracking-tighter leading-none">{skill.proficiency}%</p>
+                                    <p className="text-[10px] uppercase tracking-[0.4em] opacity-30 font-black">Neural Displacement</p>
+                                  </div>
+
+                                  <div className="h-2 w-full bg-black/40 rounded-full overflow-hidden relative mb-3 p-0.5 border border-white/5">
+                                    <motion.div 
+                                      initial={{ width: 0 }}
+                                      animate={{ width: `${skill.proficiency}%` }}
+                                      className={`h-full rounded-full ${skill.proficiency >= 70 ? 'bg-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.4)]' : 'bg-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.4)]'}`} 
+                                    />
+                                    {skill.industryBenchmark !== undefined && (
+                                      <div 
+                                        className="absolute top-0 w-1.5 h-full bg-accent z-10 shadow-[0_0_15px_var(--accent)]" 
+                                        style={{ left: `${skill.industryBenchmark}%` }} 
+                                      />
+                                    )}
+                                  </div>
+                                  
+                                  <div className="flex justify-between text-[9px] uppercase font-bold opacity-30 tracking-[0.2em] px-1">
+                                    <span>Core Baseline</span>
+                                    <span>Benchmark_{skill.industryBenchmark}%</span>
+                                  </div>
+
+                                  <AnimatePresence>
+                                    {expandedSkill === skill.name && (
+                                      <motion.div 
+                                        initial={{ opacity: 0, height: 0 }}
+                                        animate={{ opacity: 1, height: 'auto' }}
+                                        exit={{ opacity: 0, height: 0 }}
+                                        className="pt-10 space-y-8"
+                                      >
+                                        <div className="space-y-3 border-l-2 border-accent pl-6">
+                                          <p className="text-[10px] uppercase font-black tracking-[0.3em] text-accent">Analysis Outcome</p>
+                                          <p className="text-sm text-dim leading-relaxed font-medium italic">"{skill.resumeNotes}"</p>
+                                        </div>
+                                        <div className="space-y-3 border-l-2 border-amber-500 pl-6">
+                                          <p className="text-[10px] uppercase font-black tracking-[0.3em] text-amber-500">Requirement Gaps</p>
+                                          <p className="text-sm text-dim leading-relaxed font-medium">{skill.gapDescription}</p>
+                                        </div>
+                                      </motion.div>
+                                    )}
+                                  </AnimatePresence>
+                                </motion.div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+
+                        return (
+                          <div className="space-y-24">
+                            {(gapSkills.length > 0 || !sortByGap) && renderGroup(gapSkills, "Critical Evolutionary Gaps", "bg-amber-500", "rgba(245,158,11,0.5)")}
+                            {(matchedSkills.length > 0 || !sortByGap) && renderGroup(matchedSkills, "Verified Neural Assets", "bg-emerald-500", "rgba(16,185,129,0.5)")}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </motion.div>
+                )}
+
+                {activeTab === 'interview' && (
+                  <motion.div 
+                    key="interview"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    className="h-[800px] flex flex-col gap-8"
+                  >
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 glass border-thin p-8 rounded-[2.5rem] backdrop-blur-3xl shadow-2xl relative overflow-hidden">
+                      <div className="absolute top-0 left-0 w-full h-full bg-accent/5 -z-10 blur-3xl" />
+                      
+                      <div className="flex items-center gap-6">
+                        <div className="w-16 h-16 bg-accent border border-accent/20 rounded-[1.5rem] flex items-center justify-center text-black shadow-[0_0_30px_rgba(var(--accent-rgb),0.3)]">
+                          <MessageSquareCode className="w-8 h-8" />
+                        </div>
+                        <div>
+                          <h3 className="text-3xl font-black tracking-tighter uppercase italic">Neural_Verify <span className="text-accent underline decoration-accent/20 underline-offset-4">Terminal</span></h3>
+                          <div className="flex items-center gap-3 mt-2">
+                            <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
+                            <p className="text-[10px] uppercase tracking-[0.3em] text-accent font-black">Live Cognitive Validation Active</p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex gap-10 items-center px-10 border-l border-white/5 py-2">
+                        <div className="text-right">
+                          <p className="text-5xl font-black tracking-tighter leading-none italic accent-glow flex items-baseline gap-1">
+                            {assessment.score}
+                            <span className="text-xl opacity-20 font-medium">%</span>
                           </p>
+                          <p className="text-[9px] uppercase tracking-[0.4em] opacity-40 font-black mt-3">Live Parity Status</p>
+                        </div>
+                        <BrainCircuit className="w-10 h-10 opacity-20 text-accent" />
+                      </div>
+                    </div>
+
+                    <div className="flex-1 glass border-thin rounded-[3rem] flex flex-col overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.6)] relative bg-black/60">
+                      <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-transparent via-accent/20 to-transparent blur-sm" />
+                      
+                      <div className="flex-1 overflow-y-auto p-12 space-y-12 scroll-smooth custom-scrollbar relative">
+                        {/* Internal decorative grid */}
+                        <div className="absolute inset-0 neural-grid opacity-[0.03] pointer-events-none" />
+                        
+                        {chatMessages.map((msg, index) => (
+                          <motion.div 
+                            initial={{ opacity: 0, y: 20, x: msg.role === 'user' ? 40 : -40 }}
+                            animate={{ opacity: 1, y: 0, x: 0 }}
+                            key={index} 
+                            className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                          >
+                            <div 
+                              className={`max-w-[75%] px-10 py-7 rounded-[2.5rem] text-[16px] leading-relaxed shadow-3xl relative overflow-hidden ${
+                                msg.role === 'user' 
+                                  ? 'bg-white text-black font-semibold rounded-tr-none' 
+                                  : 'bg-subtle/80 backdrop-blur-2xl border border-white/10 text-white rounded-tl-none ring-1 ring-white/5'
+                              }`}
+                            >
+                              <div className={`flex items-center gap-3 mb-5 opacity-40 text-[10px] uppercase font-black tracking-[0.2em] ${msg.role === 'user' ? 'justify-end border-b border-black/10 pb-3' : 'border-b border-white/10 pb-3'}`}>
+                                {msg.role === 'assistant' ? <BrainCircuit className="w-4 h-4 text-accent" /> : <User className="w-4 h-4" />}
+                                {msg.role === 'assistant' ? 'Neural_Evaluator' : 'Root_User'}
+                              </div>
+                              <div className={`markdown-body ${msg.role === 'user' ? 'prose-invert italic' : ''}`}>
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                  {msg.content}
+                                </ReactMarkdown>
+                              </div>
+                            </div>
+                          </motion.div>
+                        ))}
+                        {isTyping && (
+                          <div className="flex justify-start">
+                            <motion.div 
+                              initial={{ opacity: 0, scale: 0.95 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              className="bg-subtle/40 backdrop-blur-3xl border border-white/5 px-10 py-7 rounded-[2.5rem] rounded-tl-none flex flex-col gap-6 min-w-[350px] shadow-2xl"
+                            >
+                              <div className="flex items-center gap-5">
+                                <div className="flex gap-2">
+                                  {[0, 0.2, 0.4].map((delay, i) => (
+                                    <motion.div 
+                                      key={i}
+                                      animate={{ opacity: [0.2, 1, 0.2], y: [0, -4, 0] }}
+                                      transition={{ repeat: Infinity, duration: 1.2, delay }}
+                                      className="w-2.5 h-2.5 bg-accent rounded-full shadow-[0_0_10px_var(--accent)]" 
+                                    />
+                                  ))}
+                                </div>
+                                <span className="text-[11px] uppercase font-black tracking-[0.3em] text-accent italic">Neural Synthesis Output...</span>
+                              </div>
+                              <div className="h-1.5 w-full bg-accent/5 rounded-full overflow-hidden border border-white/5">
+                                <motion.div 
+                                  initial={{ width: 0 }}
+                                  animate={{ width: "100%" }}
+                                  transition={{ duration: 8, ease: "linear" }}
+                                  className="h-full bg-accent/30 shadow-[0_0_15px_var(--accent)]" 
+                                />
+                              </div>
+                            </motion.div>
+                          </div>
                         )}
-                        {step.url && (
+                        <div ref={chatEndRef} />
+                      </div>
+
+                      <div className="p-10 bg-black/40 backdrop-blur-3xl border-t border-white/5">
+                        <form 
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            handleSendMessage();
+                          }}
+                          className="relative flex items-center gap-6"
+                        >
+                          <div className="relative flex-1 group">
+                            <input 
+                              type="text"
+                              value={currentInput}
+                              onChange={(e) => setCurrentInput(e.target.value)}
+                              placeholder="Inject technical response or query..."
+                              disabled={isTyping}
+                              className="w-full bg-black/40 border border-white/10 rounded-2xl px-10 py-6 text-base font-medium focus:outline-none focus:ring-2 focus:ring-accent transition-all placeholder:opacity-30 text-white disabled:opacity-50 ring-1 ring-white/5 shadow-inner"
+                            />
+                            <div className="absolute right-6 top-1/2 -translate-y-1/2 opacity-20 group-focus-within:opacity-100 transition-opacity">
+                              <Command className="w-6 h-6" />
+                            </div>
+                          </div>
+                          <button 
+                            type="submit"
+                            disabled={isTyping || !currentInput.trim()}
+                            className="bg-white text-black p-6 rounded-[1.5rem] hover:bg-accent transition-all disabled:opacity-50 active:scale-95 shadow-[0_20px_40px_rgba(0,0,0,0.4)] group border border-white/10"
+                          >
+                            <Send className="w-8 h-8 group-hover:translate-x-1.5 group-hover:-translate-y-1 transition-transform" />
+                          </button>
+                        </form>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+
+                {activeTab === 'plan' && (
+                  <motion.div 
+                    key="plan"
+                    initial={{ opacity: 0, x: -40 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 40 }}
+                    className="space-y-12"
+                  >
+                    <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 border-b border-white/5 pb-10">
+                      <div>
+                        <h3 className="text-5xl font-black tracking-tighter italic uppercase underline decoration-accent/20 underline-offset-10">Evolution <span className="text-accent underline decoration-accent underline-offset-10 italic">Map</span></h3>
+                        <p className="text-[11px] text-dim font-black uppercase tracking-[0.4em] mt-5 italic opacity-40">Dynamic strategic intelligence to optimize domain parity</p>
+                      </div>
+                      <div className="flex items-center gap-6">
+                        <div className="text-right">
+                            <p className="text-[10px] uppercase font-black tracking-widest opacity-30 mb-1">Target Convergence</p>
+                            <p className="text-2xl font-black tracking-widest uppercase">P_CONVERGE_01</p>
+                        </div>
+                        <Rocket className="w-14 h-14 text-accent opacity-20" />
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                      {assessment.plan.map((step, idx) => (
+                        <motion.div 
+                          initial={{ opacity: 0, y: 30 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: idx * 0.1 }}
+                          key={idx} 
+                          className="glass border-thin p-12 rounded-[3.5rem] space-y-8 hover:border-accent/50 transition-all group flex flex-col justify-between shadow-2xl relative overflow-hidden"
+                        >
+                          <div className="absolute top-0 right-0 p-10 opacity-[0.03] group-hover:opacity-[0.08] transition-all group-hover:scale-110">
+                            <ArrowRight className="w-40 h-40 -mr-16 -mt-16" />
+                          </div>
+                          
+                          <div className="space-y-8 relative">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-4">
+                                <span className="text-[12px] font-black font-mono text-accent uppercase tracking-[0.3em]">Phase_0{idx + 1}</span>
+                                <div className="h-4 w-px bg-white/10" />
+                                <span className="text-[10px] text-white/30 font-black uppercase tracking-widest">Protocol Sync</span>
+                              </div>
+                              <div className="flex gap-3">
+                                <span className={`px-4 py-1.5 border rounded-full text-[10px] uppercase font-black tracking-widest shadow-xl ${
+                                    step.cost === 'Free' 
+                                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-500 shadow-emerald-500/10' 
+                                        : 'bg-accent/10 border-accent/30 text-accent shadow-accent/10'
+                                }`}>
+                                  {step.cost === 'Free' ? 'Open_Node' : 'LOCKED_ASSET'}
+                                </span>
+                              </div>
+                            </div>
+                            
+                            <h4 className="text-3xl font-bold tracking-tight group-hover:text-accent transition-all leading-tight italic pr-10">{step.topic}</h4>
+                            
+                            <div className="space-y-6">
+                              <div className="flex items-start gap-5 p-6 bg-white/5 border border-white/5 rounded-3xl group-hover:bg-accent/5 group-hover:border-accent/10 transition-all">
+                                <div className="w-14 h-14 bg-black/40 border border-white/5 rounded-2xl flex items-center justify-center flex-shrink-0 group-hover:border-accent/40 shadow-inner">
+                                  <BookOpen className="w-7 h-7 text-accent" />
+                                </div>
+                                <div className="space-y-1.5">
+                                  <p className="text-base font-black tracking-tight leading-tight">{step.resource}</p>
+                                  <div className="flex items-center gap-2">
+                                    <Clock className="w-3.5 h-3.5 opacity-30" />
+                                    <p className="text-[11px] text-dim uppercase tracking-widest font-black opacity-60 italic">{step.estimate} Neural Allocation</p>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-6 border-l-4 border-accent/20 pl-8 py-2">
+                                <div className="space-y-2">
+                                  <p className="text-[10px] uppercase font-black tracking-[0.3em] text-accent opacity-50">Pre-requisite_State</p>
+                                  <p className="text-sm text-dim font-bold tracking-tight">{step.prerequisites || 'Direct access authorized'}</p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                          
                           <a 
                             href={step.url} 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="flex items-center gap-1 text-[10px] text-accent hover:underline"
+                            className="mt-12 flex items-center justify-between p-7 bg-white/5 border border-white/10 rounded-2xl hover:bg-white hover:text-black transition-all group/btn shadow-xl ring-1 ring-white/5"
                           >
-                            <ExternalLink className="w-3 h-3" />
-                            Access Course
+                            <span className="text-[11px] uppercase font-black tracking-[0.4em]">Execute Neural Transfer</span>
+                            <ExternalLink className="w-6 h-6 group-hover/btn:translate-x-1.5 group-hover/btn:-translate-y-1.5 transition-transform" />
                           </a>
-                        )}
-                      </div>
-                      <div className="flex flex-col items-end gap-2">
-                        <p className="text-xs font-mono accent-text bg-subtle px-2 py-1 rounded whitespace-nowrap">{step.estimate}</p>
-                        {user && (
-                          <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button 
-                              onClick={() => handleRateStep(i, 'helpful')}
-                              className={`p-1.5 rounded hover:bg-emerald-500/10 transition-colors ${step.rating === 'helpful' ? 'text-emerald-500' : 'text-dim opacity-30'}`}
-                            >
-                              <ThumbsUp className="w-3 h-3" />
-                            </button>
-                            <button 
-                              onClick={() => handleRateStep(i, 'unhelpful')}
-                              className={`p-1.5 rounded hover:bg-rose-500/10 transition-colors ${step.rating === 'unhelpful' ? 'text-rose-500' : 'text-dim opacity-30'}`}
-                            >
-                              <ThumbsDown className="w-3 h-3" />
-                            </button>
-                          </div>
-                        )}
-                      </div>
+                        </motion.div>
+                      ))}
                     </div>
                   </motion.div>
-                ))}
-                {assessment.plan.length === 0 && (
-                  <div className="text-center py-20 opacity-30">
-                    <CheckCircle2 className="w-12 h-12 mx-auto mb-4 text-emerald-500" />
-                    <p className="text-xs uppercase tracking-widest font-bold">No significant gaps detected</p>
-                  </div>
                 )}
-              </div>
-
-              <div className="pt-8 space-y-4">
-                <button 
-                  onClick={() => {
-                    setAssessment(null);
-                    setJd('');
-                    setJdInputMode('choice');
-                    setResume('');
-                    setUploadedFileName(null);
-                    setUploadedJdFileName(null);
-                    setResumeInputMode('choice');
-                    if (isSharedMode) {
-                      window.history.replaceState({}, '', window.location.pathname);
-                      setIsSharedMode(false);
-                    }
-                  }}
-                  className="w-full py-4 border border-main text-dim font-bold text-xs uppercase tracking-widest hover:bg-accent/5 transition-colors"
-                >
-                  {isSharedMode ? 'Start Your Own Analysis' : 'New Analysis'}
-                </button>
-                <div className="text-[10px] text-center opacity-30 uppercase tracking-widest font-bold">
-                  Curated via Gemini neural insights
-                </div>
-              </div>
+              </AnimatePresence>
             </div>
+
           </div>
         )}
       </main>

@@ -9,6 +9,7 @@ export interface Skill {
   gapDescription: string;
   resumeNotes: string;
   industryBenchmark: number; // 0-100 (Average for this role/level)
+  isVerified?: boolean;
 }
 
 export interface LearningStep {
@@ -21,116 +22,76 @@ export interface LearningStep {
   rating?: 'helpful' | 'unhelpful';
 }
 
-export async function extractSkillsFromJD(jd: string) {
+export async function analyzeCareer(jd: string, resume: string): Promise<{ skills: Skill[], plan: LearningStep[] }> {
   const response = await ai.models.generateContent({
     model: MODEL_NAME,
-    contents: `Extract a list of required technical skills from this Job Description. Return ONLY a JSON array of strings.
-    JD: ${jd}`,
+    contents: `Act as an expert technical recruiter and career coach. 
+    Analyze this Job Description and the candidate's Resume to provide a comprehensive proficiency gap analysis and learning roadmap.
+
+    STEP 1: Identify 6-10 core technical competencies or tools required by the Job Description. Group related technologies if necessary (e.g., "Fullstack Development" or "Cloud Infrastructure").
+    STEP 2: For each identified skill, analyze the candidate's Resume. Look for direct mentions, synonyms, or related experience (e.g., if JD asks for 'Tailwind', but resume has 'Advanced CSS' and 'Bootstrap', they have foundational proficiency).
+    STEP 3: Score the candidate (0-100) based on the "Practical Probability" that they could perform the task.
+    - 0-10: Truly no related background.
+    - 11-40: Indirect experience or foundational knowledge in related tools.
+    - 41-70: Direct entry-level or mid-level professional experience.
+    - 71-100: Demonstrated mastery or repeated complex applications.
+    STEP 4: Generate a personalized learning plan for gaps < 80.
+
+    JD: ${jd}
+    RESUME: ${resume}
+
+    IMPORTANT: Do not be overly pedantic with keywords. If a candidate knows "React", they likely understand "Virtual DOM" and "JSX". If they know "PostgreSQL", they have "SQL" and "RDBMS" proficiency. Give credit for related experience.
+    Return a JSON object with "skills" and "plan". Be fair and look for implicit evidence.`,
     config: {
       temperature: 0,
       responseMimeType: "application/json",
       responseSchema: {
-        type: Type.ARRAY,
-        items: { type: Type.STRING }
-      }
-    }
-  });
-  
-  try {
-    return JSON.parse(response.text || "[]") as string[];
-  } catch (e) {
-    console.error("Failed to parse skills from JD", e);
-    return [];
-  }
-}
-
-export async function assessSkillProficiency(resume: string, jdSkills: string[]) {
-  const response = await ai.models.generateContent({
-    model: MODEL_NAME,
-    contents: `Act as a precise, deterministic Skill Assessment Agent. 
-    Analyze this candidate's resume against these required skills: ${jdSkills.join(", ")}.
-    
-    SCORING RUBRIC:
-    - 0-20: No mention or evidence of the skill.
-    - 21-50: Mentioned once but no context or shallow project use.
-    - 51-75: Clear evidence of professional use or solid project implementation.
-    - 76-90: Deep technical knowledge, multiple projects, or advanced certifications.
-    - 91-100: Expert/Architect level with significant leadership or complex optimization evidence.
-
-    Provide proficiency levels (0-100), gaps, and specific evidence found in the resume.
-    Provide an 'industryBenchmark' (0-100) for each skill.
-    
-    IMPORTANT: You must be extremely consistent. Identify exactly the same scores for the same resume and skills every single time.`,
-    config: {
-      systemInstruction: "You are a specialized scoring engine for technical recruiters. Your evaluations are objective, data-driven, and perfectly reproducible.",
-      temperature: 0,
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.ARRAY,
-        items: {
-          type: Type.OBJECT,
-          properties: {
-            name: { type: Type.STRING },
-            proficiency: { type: Type.NUMBER },
-            gapDescription: { type: Type.STRING },
-            resumeNotes: { type: Type.STRING },
-            industryBenchmark: { type: Type.NUMBER }
+        type: Type.OBJECT,
+        properties: {
+          skills: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                name: { type: Type.STRING },
+                proficiency: { type: Type.NUMBER },
+                gapDescription: { type: Type.STRING },
+                resumeNotes: { type: Type.STRING },
+                industryBenchmark: { type: Type.NUMBER }
+              },
+              required: ["name", "proficiency", "gapDescription", "resumeNotes", "industryBenchmark"]
+            }
           },
-          required: ["name", "proficiency", "gapDescription", "resumeNotes", "industryBenchmark"]
-        }
+          plan: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                topic: { type: Type.STRING },
+                resource: { type: Type.STRING },
+                url: { type: Type.STRING },
+                estimate: { type: Type.STRING },
+                cost: { type: Type.STRING },
+                prerequisites: { type: Type.STRING }
+              },
+              required: ["topic", "resource", "url", "estimate", "cost", "prerequisites"]
+            }
+          }
+        },
+        required: ["skills", "plan"]
       }
     }
   });
 
   try {
-    return JSON.parse(response.text || "[]") as Skill[];
+    const data = JSON.parse(response.text || "{}");
+    return {
+      skills: data.skills || [],
+      plan: data.plan || []
+    };
   } catch (e) {
-    console.error("Failed to assess proficiency", e);
-    return [];
-  }
-}
-
-export async function generateLearningPlan(gaps: Skill[]) {
-  if (gaps.length === 0) return [];
-  
-  const response = await ai.models.generateContent({
-    model: MODEL_NAME,
-    contents: `Find high-quality, free or paid learning resources for these skill gaps: ${gaps.map(g => g.name).join(", ")}.
-    
-    For each gap, provide:
-    - topic: A concrete, actionable learning objective.
-    - resource: The specific name of a reputable course or documentation.
-    - url: A direct, functional URL. USE THE SEARCH TOOL to find real, current documentation or course pages.
-    - estimate: Realistic time commitment.
-    - cost: Estimated price (e.g., "Free", "$29/mo", "$49 once").
-    - prerequisites: Brief mention of what knowledge is needed before starting (e.g., "Basic JavaScript").`,
-    config: {
-      temperature: 0,
-      tools: [{ googleSearch: {} }],
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.ARRAY,
-        items: {
-          type: Type.OBJECT,
-          properties: {
-            topic: { type: Type.STRING },
-            resource: { type: Type.STRING },
-            url: { type: Type.STRING },
-            estimate: { type: Type.STRING },
-            cost: { type: Type.STRING },
-            prerequisites: { type: Type.STRING }
-          },
-          required: ["topic", "resource", "url", "estimate", "cost", "prerequisites"]
-        }
-      }
-    }
-  });
-
-  try {
-    return JSON.parse(response.text || "[]") as LearningStep[];
-  } catch (e) {
-    console.error("Failed to generate learning plan", e);
-    return [];
+    console.error("Failed to parse full assessment", e);
+    return { skills: [], plan: [] };
   }
 }
 
@@ -145,7 +106,13 @@ export async function chatWithAgent(messages: {role: 'user' | 'assistant', conte
     
     TASK:
     - Respond to the user's last message concisely and technically.
-    - REFINED ASSESSMENT: If the user demonstrates proficiency or clarifies a gap during this conversation, you MUST provide an update to their skills map.
+    - PROACTIVE INTERVIEWER: Your primary goal is to verify the candidate's proficiency in the skills listed in the Proficiency Map. 
+    - You are a "Neural Interviewer". Your mission is to probe the candidate's deep technical knowledge through a structured, conversational interview.
+    - At the end of your response, ask ONE high-signal technical question about a specific skill (prioritize lower-scored ones).
+    - DYNAMIC EVALUATION: As the user responds, look for signs of true domain expertise (e.g., mentioning edge cases, architectural trade-offs, specific performance optimizations).
+    - REFINED ASSESSMENT: If the user demonstrates proficiency during this conversation, you MUST provide an update to their skills map in the "updates" field.
+    - FINAL SCORE IMPACT: Your updates will directly influence the candidate's "Verified Neural Score".
+    - BE FAIR: If they explain a complex concept correctly, give them a score boost (20-40 points). If they admit ignorance, keep the score as is but offer a learning path.
     
     RESPONSE FORMAT:
     Your response must be a valid JSON object with two fields:

@@ -34,7 +34,8 @@
             }
           }
         },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["userId", "jd", "resume", "score", "skills", "plan", "createdAt"]
     },

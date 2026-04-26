@@ -24,9 +24,9 @@ service cloud.firestore {
       return data.userId == request.auth.uid
         && data.jd is string && data.jd.size() <= 50000
         && data.resume is string && data.resume.size() <= 50000
-        && data.score is number
-        && data.skills is list
-        && data.plan is list
+        && data.score is number && data.score >= 0 && data.score <= 100
+        && data.skills is list && data.skills.size() <= 30
+        && data.plan is list && data.plan.size() <= 30
         && data.createdAt == request.time;
     }
 
@@ -39,21 +39,24 @@ service cloud.firestore {
 
     // Assessments rules
     match /assessments/{assessmentId} {
-      allow create: if isSignedIn() && isValidAssessment(request.resource.data);
+      allow create: if isSignedIn() && isValidId(assessmentId) && isValidAssessment(request.resource.data);
       allow get: if true; // Allow public viewing of shared assessments by ID
       allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
       allow update: if isSignedIn() 
         && resource.data.userId == request.auth.uid
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['plan']); 
+        && request.resource.data.diff(resource.data).affectedKeys().hasAny(['plan', 'skills', 'score', 'updatedAt'])
+        && (request.resource.data.updatedAt == request.time || !request.resource.data.keys().hasAll(['updatedAt']))
+        && (request.resource.data.score is number && request.resource.data.score >= 0 && request.resource.data.score <= 100);
       allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
 
       // Messages subcollection
       match /messages/{messageId} {
         allow list: if true; // Allow viewing conversation history for shared links
-        allow create: if isSignedIn() 
+        allow create: if isSignedIn() && isValidId(messageId)
           && get(/databases/$(database)/documents/assessments/$(assessmentId)).data.userId == request.auth.uid
           && isValidMessage(request.resource.data);
-        allow get, update, delete: if false;
+        allow get: if true;
+        allow update, delete: if false;
       }
     }
   }

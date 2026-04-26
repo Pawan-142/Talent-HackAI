@@ -18,6 +18,7 @@ import {
   LogOut,
   History,
   Plus,
+  RotateCcw,
   Filter,
   ExternalLink,
   Upload,
@@ -1047,9 +1048,9 @@ export default function App() {
                         setUploadedJdFileName(null);
                         setAssessmentError(null);
                       }}
-                      className="w-full py-4 rounded-3xl flex items-center justify-center gap-3 transition-all text-white/40 hover:text-white hover:bg-white/5 text-[10px] uppercase font-black tracking-[0.2em]"
+                      className="w-full py-4 rounded-3xl flex items-center justify-center gap-3 transition-all text-dim hover:text-primary hover:bg-subtle text-[10px] uppercase font-black tracking-[0.2em]"
                     >
-                      <Plus className="w-4 h-4" /> Reset Inputs
+                      <RotateCcw className="w-4 h-4" /> Reset Inputs
                     </button>
                     
                     {isLoading && loadingStage && (
@@ -1471,14 +1472,14 @@ export default function App() {
                               className={`max-w-[75%] px-10 py-7 rounded-[2.5rem] text-[16px] leading-relaxed shadow-3xl relative overflow-hidden ${
                                 msg.role === 'user' 
                                   ? 'bg-white text-black font-semibold rounded-tr-none' 
-                                  : 'bg-subtle/80 backdrop-blur-2xl border border-white/10 text-white rounded-tl-none ring-1 ring-white/5'
+                                  : 'bg-subtle backdrop-blur-2xl border border-main text-primary rounded-tl-none shadow-xl'
                               }`}
                             >
-                              <div className={`flex items-center gap-3 mb-5 opacity-40 text-[10px] uppercase font-black tracking-[0.2em] ${msg.role === 'user' ? 'justify-end border-b border-black/10 pb-3' : 'border-b border-white/10 pb-3'}`}>
+                              <div className={`flex items-center gap-3 mb-5 opacity-40 text-[10px] uppercase font-black tracking-[0.2em] ${msg.role === 'user' ? 'justify-end border-b border-black/10 pb-3' : 'border-b border-main pb-3'}`}>
                                 {msg.role === 'assistant' ? <BrainCircuit className="w-4 h-4 text-accent" /> : <User className="w-4 h-4" />}
                                 {msg.role === 'assistant' ? 'Neural_Evaluator' : 'Root_User'}
                               </div>
-                              <div className={`markdown-body ${msg.role === 'user' ? 'prose-invert italic' : ''}`}>
+                              <div className={`markdown-body ${msg.role === 'user' ? 'italic' : ''}`}>
                                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
                                   {msg.content}
                                 </ReactMarkdown>
@@ -1535,7 +1536,7 @@ export default function App() {
                               onChange={(e) => setCurrentInput(e.target.value)}
                               placeholder="Inject technical response or query..."
                               disabled={isTyping}
-                              className="w-full bg-black/40 border border-white/10 rounded-2xl px-10 py-6 text-base font-medium focus:outline-none focus:ring-2 focus:ring-accent transition-all placeholder:opacity-30 text-white disabled:opacity-50 ring-1 ring-white/5 shadow-inner"
+                              className="w-full bg-subtle border border-main rounded-2xl px-10 py-6 text-base font-medium focus:outline-none focus:ring-2 focus:ring-accent transition-all placeholder:opacity-30 text-primary disabled:opacity-50 shadow-inner"
                             />
                             <div className="absolute right-6 top-1/2 -translate-y-1/2 opacity-20 group-focus-within:opacity-100 transition-opacity">
                               <Command className="w-6 h-6" />

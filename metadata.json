@@ -1,0 +1,6 @@
+{
+  "name": "Catalyst AI",
+  "description": "AI-Powered Skill Assessment & Personalised Learning Plan Agent",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["ai_skill_assessment", "learning_plan_generation"]
+}

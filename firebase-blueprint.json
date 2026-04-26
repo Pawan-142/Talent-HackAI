@@ -1,0 +1,63 @@
+{
+  "entities": {
+    "Assessment": {
+      "title": "Assessment",
+      "description": "A skill assessment result",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "jd": { "type": "string" },
+        "resume": { "type": "string" },
+        "score": { "type": "number" },
+        "skills": { 
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "proficiency": { "type": "number" },
+              "gapDescription": { "type": "string" },
+              "resumeNotes": { "type": "string" }
+            }
+          }
+        },
+        "plan": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "topic": { "type": "string" },
+              "resource": { "type": "string" },
+              "url": { "type": "string" },
+              "estimate": { "type": "string" },
+              "rating": { "type": "string", "enum": ["helpful", "unhelpful"] }
+            }
+          }
+        },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "jd", "resume", "score", "skills", "plan", "createdAt"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "A message in a conversation",
+      "type": "object",
+      "properties": {
+        "role": { "type": "string", "enum": ["user", "assistant"] },
+        "content": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["role", "content", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/assessments/{assessmentId}": {
+      "schema": "Assessment",
+      "description": "Collection of skill assessments"
+    },
+    "/assessments/{assessmentId}/messages/{messageId}": {
+      "schema": "Message",
+      "description": "Messages for a specific assessment"
+    }
+  }
+}

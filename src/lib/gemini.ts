@@ -96,24 +96,36 @@ export async function analyzeCareer(jd: string, resume: string): Promise<{ skill
   }
 }
 
-export async function chatWithAgent(messages: {role: 'user' | 'assistant', content: string}[], skills: Skill[], plan: LearningStep[]) {
+export async function chatWithAgent(messages: {role: 'user' | 'assistant', content: string}[], skills: Skill[], plan: LearningStep[], currentScore: number, questionCount: number) {
+  const isAtLimit = questionCount >= 5;
   const response = await ai.models.generateContent({
     model: MODEL_NAME,
-    contents: `You are Talent Hack, a career growth agent. Help the candidate prepare for their role. 
+    contents: `You are Talent Hack, a friendly and expert career growth co-pilot and mentor. Your goal is to help the candidate prepare for their dream role through a collaborative and engaging technical conversation.
     
     CONTEXTUAL DATA:
     1. Proficiency Map: ${JSON.stringify(skills)}
     2. Recommended Learning Path: ${JSON.stringify(plan)}
+    3. Current Assessment Score: ${currentScore}%
+    4. Questions Answered So Far: ${questionCount}/5
     
-    TASK:
-    - Respond to the user's last message concisely and technically.
-    - PROACTIVE INTERVIEWER: Your primary goal is to verify the candidate's proficiency in the skills listed in the Proficiency Map. 
-    - You are a "Neural Interviewer". Your mission is to probe the candidate's deep technical knowledge through a structured, conversational interview.
-    - At the end of your response, ask ONE high-signal technical question about a specific skill (prioritize lower-scored ones).
-    - DYNAMIC EVALUATION: As the user responds, look for signs of true domain expertise (e.g., mentioning edge cases, architectural trade-offs, specific performance optimizations).
-    - REFINED ASSESSMENT: If the user demonstrates proficiency during this conversation, you MUST provide an update to their skills map in the "updates" field.
-    - FINAL SCORE IMPACT: Your updates will directly influence the candidate's "Verified Neural Score".
-    - BE FAIR: If they explain a complex concept correctly, give them a score boost (20-40 points). If they admit ignorance, keep the score as is but offer a learning path.
+    GUIDELINES:
+    - BE CONVERSATIONAL: While you are evaluating skills, don't just be an automated test. Act like a mentor having a coffee-shop technical discussion. 
+    - PERSONALIZED FEEDBACK: First, provide EXTREMELY BRIEF (1 sentence), ENCOURAGING feedback on the user's previous answer. Mention specific technical strengths or areas for nuance.
+    - DUAL ROLE: Balance your mission as a "Neural Interviewer" with a helpful chatbot persona. If the user asks general questions, seeks career advice, or wants clarification, answer them warmly and helpfully.
+    - PROACTIVE INTERVIEWER: Gently steer the conversation back to verifying proficiency in the Skill Mesh when appropriate.
+    
+    TASK EXECUTION:
+    - Respond to the user's last message concisely, warmly, and technically.
+    ${isAtLimit ? `
+    - 5-QUESTION LIMIT REACHED: You have asked 5 probe questions. 
+    - DO NOT ask another technical interview question.
+    - Instead, summarize their primary strengths demonstrated, state their current score (${currentScore}%), and ask: "Would you like to keep chatting to improve your score further, or shall we move on to exploring your personalized learning roadmap?"
+    ` : `
+    - INTERVIEW MODE: Aim to probe the candidate's deep technical knowledge.
+    - At the end of your response, ask ONE high-signal technical question about a specific skill (prioritize lower-scored ones). Use conversational transitions (e.g., "Thinking about that architecture, how would you handle...").
+    `}
+    - DYNAMIC EVALUATION: Look for signs of mastery (edge cases, trade-offs). Update skills in the "updates" field accordingly.
+    - BE FAIR & GENEROUS: Give 10-30 point boosts for excellent responses. If they admit a gap, acknowledge it as a growth opportunity and offer to explain.
     
     RESPONSE FORMAT:
     Your response must be a valid JSON object with two fields:
@@ -141,5 +153,67 @@ export async function chatWithAgent(messages: {role: 'user' | 'assistant', conte
     return data;
   } catch (e) {
     return { message: response.text || "I'm having trouble processing that request.", updates: [] };
+  }
+}
+
+export interface RoadmapItem {
+  period: string;
+  tasks: {
+    title: string;
+    description: string;
+    duration: string;
+  }[];
+}
+
+export async function generateRoadmap(skills: Skill[], plan: LearningStep[], duration: string): Promise<RoadmapItem[]> {
+  const response = await ai.models.generateContent({
+    model: MODEL_NAME,
+    contents: `Act as a career mentor. Create a detailed, personalized learning roadmap based on the candidate's skill gaps and recommended learning steps.
+    
+    SKILL GAPS: ${JSON.stringify(skills.filter(s => s.proficiency < 80))}
+    LEARNING STEPS: ${JSON.stringify(plan)}
+    REQUESTED DURATION: ${duration}
+    
+    TASK:
+    - Breakdown the learning plan into a structured timeline.
+    - If duration is <= 2 weeks, provide a DAILY breakdown.
+    - If duration is > 2 weeks, provide a WEEKLY breakdown.
+    - Each period (Day X or Week X) should have specific tasks with titles, descriptions, and estimated durations.
+    - Focus on bridging the most critical gaps first.
+    
+    Return a JSON array of objects: { "period": string, "tasks": [ { "title": string, "description": string, "duration": string } ] }`,
+    config: {
+      temperature: 0.5,
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            period: { type: Type.STRING },
+            tasks: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  title: { type: Type.STRING },
+                  description: { type: Type.STRING },
+                  duration: { type: Type.STRING }
+                },
+                required: ["title", "description", "duration"]
+              }
+            }
+          },
+          required: ["period", "tasks"]
+        }
+      }
+    }
+  });
+
+  try {
+    return JSON.parse(response.text || "[]");
+  } catch (e) {
+    console.error("Failed to parse roadmap", e);
+    return [];
   }
 }

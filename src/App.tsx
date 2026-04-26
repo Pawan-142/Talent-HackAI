@@ -10,6 +10,7 @@ import {
   BrainCircuit, 
   ArrowRight, 
   CheckCircle2, 
+  Activity,
   AlertCircle, 
   BookOpen, 
   Send,
@@ -19,7 +20,6 @@ import {
   History,
   Plus,
   RotateCcw,
-  Filter,
   ExternalLink,
   Upload,
   X,
@@ -57,8 +57,10 @@ import { auth, signInWithGoogle, db, handleFirestoreError } from './lib/firebase
 import { 
   chatWithAgent,
   analyzeCareer,
+  generateRoadmap,
   Skill, 
-  LearningStep 
+  LearningStep,
+  RoadmapItem
 } from './lib/gemini';
 import { extractTextFromPdf } from './lib/pdf';
 
@@ -150,8 +152,12 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [loadingStage, setLoadingStage] = useState<string | null>(null);
   
-  type Tab = 'overview' | 'skills' | 'interview' | 'learning';
+  type Tab = 'overview' | 'skills' | 'interview' | 'learning' | 'roadmap';
   const [activeTab, setActiveTab] = useState<Tab>('overview');
+  
+  const [roadmap, setRoadmap] = useState<RoadmapItem[] | null>(null);
+  const [isGeneratingRoadmap, setIsGeneratingRoadmap] = useState(false);
+  const [roadmapDuration, setRoadmapDuration] = useState('1 week');
   
   const [assessment, setAssessment] = useState<{
     id?: string;
@@ -161,11 +167,15 @@ export default function App() {
   } | null>(null);
   
   // Conversational state
-  const [chatMessages, setChatMessages] = useState<{role: 'user' | 'assistant', content: string}[]>([]);
+  const [chatMessages, setChatMessages] = useState<{
+    role: 'user' | 'assistant', 
+    content: string, 
+    impact?: { name: string, delta: number, newValue: number }[]
+  }[]>([]);
   const [currentInput, setCurrentInput] = useState('');
+  const [questionCount, setQuestionCount] = useState(0);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  const [sortByGap, setSortByGap] = useState(false);
   const [expandedSkill, setExpandedSkill] = useState<string | null>(null);
 
   useEffect(() => {
@@ -189,6 +199,8 @@ export default function App() {
         setUploadedJdFileName(null);
         setChatMessages([]);
         setHistory([]);
+        setQuestionCount(0);
+        setRoadmap(null);
       }
     });
 
@@ -307,10 +319,11 @@ export default function App() {
       const initialIntro = `Assessment complete! You have a skill match score of ${averageScore}%. I've identified ${gaps.length} areas for growth. I'm now entering Neural Interview mode to refine your score through conversation.`;
       
       // Get a proactive first question from the agent
-      const aiData = await chatWithAgent([{ role: 'user', content: "Please introduce yourself and ask your first interview question based on my profile analysis." }], skillsProficiency, learningPlan);
+      const aiData = await chatWithAgent([{ role: 'user', content: "Please introduce yourself and ask your first interview question based on my profile analysis." }], skillsProficiency, learningPlan, averageScore, 0);
       const assistantMessage = { role: 'assistant' as const, content: `${initialIntro}\n\n${aiData.message}` };
       
       setChatMessages([assistantMessage]);
+      setQuestionCount(1);
       setActiveTab('interview');
 
       const newAssessment = {
@@ -350,6 +363,17 @@ export default function App() {
 
   const handleSendMessage = async () => {
     if (!currentInput.trim()) return;
+
+    const currentQ = questionCount;
+    let nextCount = questionCount + 1;
+    const input = currentInput.toLowerCase();
+    
+    // Check if user is responding to the "continue" prompt
+    if (questionCount >= 5 && (input.includes('yes') || input.includes('more') || input.includes('prepare') || input.includes('continue'))) {
+      nextCount = 1; // Reset for another round
+    }
+
+    setQuestionCount(nextCount);
     
     const userMessage = { role: 'user' as const, content: currentInput };
     const updatedMessages = [...chatMessages, userMessage];
@@ -360,10 +384,9 @@ export default function App() {
 
     try {
       // Get AI response
-      const data = await chatWithAgent(updatedMessages, assessment?.skills || [], assessment?.plan || []);
-      const assistantMessage = { role: 'assistant' as const, content: data.message };
+      const data = await chatWithAgent(updatedMessages, assessment?.skills || [], assessment?.plan || [], assessment?.score || 0, currentQ);
       
-      setChatMessages(prev => [...prev.filter(m => m !== userMessage), userMessage, assistantMessage]);
+      const impacts: { name: string, delta: number, newValue: number }[] = [];
 
       // Handle Skill Updates from Chat
       if (data.updates && data.updates.length > 0 && assessment) {
@@ -373,6 +396,13 @@ export default function App() {
         data.updates.forEach((update: any) => {
           const index = updatedSkills.findIndex(s => s.name === update.skillName);
           if (index !== -1) {
+            const oldValue = updatedSkills[index].proficiency;
+            const delta = update.proficiency - oldValue;
+            
+            if (delta !== 0) {
+              impacts.push({ name: update.skillName, delta, newValue: update.proficiency });
+            }
+
             updatedSkills[index] = {
               ...updatedSkills[index],
               proficiency: update.proficiency,
@@ -405,18 +435,34 @@ export default function App() {
         }
       }
 
+      const assistantMessage = { 
+        role: 'assistant' as const, 
+        content: data.message,
+        impact: impacts.length > 0 ? impacts : undefined
+      };
+      
+      setChatMessages(prev => [...prev.filter(m => m !== userMessage), userMessage, assistantMessage]);
+
       // If persistent, save to Firestore
       if (assessment?.id && user && user.uid === (assessment as any).userId) {
         try {
-          await addDoc(collection(db, 'assessments', assessment.id, 'messages'), {
+          const userMsgSync = {
             ...userMessage,
             createdAt: serverTimestamp()
-          });
+          };
           
-          await addDoc(collection(db, 'assessments', assessment.id, 'messages'), {
+          const assistantMsgSync = {
             ...assistantMessage,
             createdAt: serverTimestamp()
-          });
+          };
+
+          // Firestore doesn't support 'undefined'
+          if (assistantMsgSync.impact === undefined) {
+            delete (assistantMsgSync as any).impact;
+          }
+
+          await addDoc(collection(db, 'assessments', assessment.id, 'messages'), userMsgSync);
+          await addDoc(collection(db, 'assessments', assessment.id, 'messages'), assistantMsgSync);
         } catch (error) {
           console.error("Firestore sync error:", error);
         }
@@ -530,6 +576,21 @@ export default function App() {
     doc.save(`TALENT_HACK_Report_${assessment.id?.substring(0, 8)}.pdf`);
   };
 
+  const handleGenerateRoadmap = async (duration: string) => {
+    if (!assessment) return;
+    setIsGeneratingRoadmap(true);
+    setRoadmapDuration(duration);
+    try {
+      const data = await generateRoadmap(assessment.skills, assessment.plan, duration);
+      setRoadmap(data);
+    } catch (error) {
+      console.error("Roadmap generation failed", error);
+      setAssessmentError("Failed to generate your personalized timeline. Please try again.");
+    } finally {
+      setIsGeneratingRoadmap(false);
+    }
+  };
+
   const handleReset = () => {
     setAssessment(null);
     setJd('');
@@ -539,6 +600,7 @@ export default function App() {
     setUploadedJdFileName(null);
     setResumeInputMode('choice');
     setChatMessages([]);
+    setQuestionCount(0);
     if (isSharedMode) {
       window.history.replaceState({}, '', window.location.pathname);
       setIsSharedMode(false);
@@ -595,7 +657,7 @@ export default function App() {
             </div>
             <div>
               <p className="text-[10px] tracking-[0.3em] uppercase opacity-40 font-bold">Neural Protocol / v0.9.4</p>
-              <h1 className="text-2xl font-black tracking-tight text-primary flex items-center gap-1 uppercase">Talent Hack<span className="opacity-20">_</span>AI</h1>
+              <h1 className="text-2xl font-black tracking-tight text-primary flex items-center gap-1 uppercase italic">Talent <span className="text-accent underline decoration-accent/20">Hack</span> AI</h1>
             </div>
           </div>
         </div>
@@ -1106,22 +1168,23 @@ export default function App() {
                 </div>
                 
                 <div className="space-y-2">
-                  <h2 className="text-6xl font-black tracking-tighter leading-none italic uppercase text-primary">Skill <span className="text-accent italic">Assessment</span></h2>
-                  <p className="text-[10px] text-dim uppercase tracking-[0.5em] font-black opacity-30 mt-4">Personalized Feedback & Learning Plan</p>
+                  <h2 className="text-4xl font-black tracking-tighter leading-none italic uppercase text-primary">Skill <span className="text-accent italic">Assessment</span></h2>
+                  <p className="text-[10px] text-dim uppercase tracking-[0.5em] font-black opacity-30 mt-3">Personalized Feedback & Learning Plan</p>
                 </div>
                 
                 {/* Tab Navigation */}
-                <div className="flex items-center gap-1 bg-white/5 backdrop-blur-3xl p-1.5 rounded-2xl border border-white/5 w-fit">
+                <div className="flex items-center gap-1 bg-white/5 backdrop-blur-3xl p-1 rounded-xl border border-white/5 w-fit">
                   {[
                     { id: 'overview', label: 'Overview', icon: Layout },
                     { id: 'skills', label: 'Skill Mesh', icon: BrainCircuit },
                     { id: 'interview', label: 'Interview', icon: MessageSquareCode },
-                    { id: 'learning', label: 'Learning Path', icon: BookOpen }
+                    { id: 'learning', label: 'Learning Path', icon: BookOpen },
+                    { id: 'roadmap', label: 'Growth Roadmap', icon: Rocket }
                   ].map(tab => (
                     <button
                       key={tab.id}
                       onClick={() => setActiveTab(tab.id as Tab)}
-                      className={`flex items-center gap-2 px-6 py-3 rounded-xl text-[9px] uppercase tracking-[0.2em] font-black transition-all relative ${
+                      className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-[9px] uppercase tracking-[0.15em] font-black transition-all relative ${
                         activeTab === tab.id 
                           ? 'text-primary' 
                           : 'text-dim hover:text-primary'
@@ -1130,30 +1193,30 @@ export default function App() {
                       {activeTab === tab.id && (
                         <motion.div 
                           layoutId="activeTab"
-                          className="absolute inset-0 bg-accent rounded-xl -z-10 shadow-[0_0_20px_rgba(var(--accent-rgb),0.4)]"
+                          className="absolute inset-0 bg-accent rounded-lg -z-10 shadow-[0_0_15px_rgba(var(--accent-rgb),0.3)]"
                           transition={{ type: "spring", bounce: 0.1, duration: 0.5 }}
                         />
                       )}
-                      <tab.icon className={`w-3.5 h-3.5 ${activeTab === tab.id ? 'text-black' : 'text-accent opacity-40'}`} />
+                      <tab.icon className={`w-3 h-3 ${activeTab === tab.id ? 'text-black' : 'text-accent opacity-40'}`} />
                       {tab.label}
                     </button>
                   ))}
                 </div>
               </div>
 
-              <div className="flex gap-16 pt-4 lg:pb-4 border-l border-white/5 pl-10">
+              <div className="flex gap-12 pt-4 lg:pb-4 border-l border-white/5 pl-8">
                 <div className="space-y-1">
-                  <p className="text-7xl font-black flex items-baseline accent-glow">
+                  <p className="text-5xl font-black flex items-baseline accent-glow">
                     {assessment.score}
-                    <span className="text-2xl opacity-20 ml-1 font-medium">%</span>
+                    <span className="text-xl opacity-20 ml-1 font-medium">%</span>
                   </p>
-                  <p className="text-[9px] uppercase tracking-[0.3em] opacity-30 font-black">Skill Match Score</p>
+                  <p className="text-[9px] uppercase tracking-[0.2em] opacity-30 font-black">Match Score</p>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-7xl font-black opacity-20">
+                  <p className="text-5xl font-black opacity-20">
                     {assessment.skills.filter(s => s.proficiency < 70).length.toString().padStart(2, '0')}
                   </p>
-                  <p className="text-[9px] uppercase tracking-[0.3em] opacity-30 font-black">Skill Gaps</p>
+                  <p className="text-[9px] uppercase tracking-[0.2em] opacity-30 font-black">Skill Gaps</p>
                 </div>
               </div>
             </div>
@@ -1170,40 +1233,40 @@ export default function App() {
                     className="grid grid-cols-1 md:grid-cols-3 gap-8"
                   >
                     <div className="md:col-span-2 space-y-8">
-                      <div className="glass border-thin p-12 rounded-[3rem] space-y-8 relative overflow-hidden group shadow-2xl">
-                        <div className="absolute top-0 right-0 p-12 opacity-[0.02] group-hover:opacity-[0.05] transition-opacity">
-                          <Cpu className="w-80 h-80 -mr-24 -mt-24" />
+                      <div className="glass border-thin p-10 rounded-3xl space-y-6 relative overflow-hidden group shadow-2xl">
+                        <div className="absolute top-0 right-0 p-10 opacity-[0.02] group-hover:opacity-[0.05] transition-opacity">
+                          <Cpu className="w-64 h-64 -mr-16 -mt-16" />
                         </div>
                         
-                        <div className="space-y-4">
-                          <h3 className="text-4xl font-black tracking-tighter uppercase text-primary">Assessment Overview</h3>
-                          <div className="w-20 h-1 bg-accent/20 rounded-full" />
+                        <div className="space-y-3">
+                          <h3 className="text-3xl font-black tracking-tighter uppercase text-primary">Assessment Overview</h3>
+                          <div className="w-16 h-1 bg-accent/20 rounded-full" />
                         </div>
                         
-                        <p className="text-dim leading-relaxed text-xl max-w-2xl font-medium">
-                          We found that your skills match this role by <span className="text-primary font-black underline decoration-accent underline-offset-8">{assessment.score}%</span>. 
+                        <p className="text-dim leading-relaxed text-lg max-w-2xl font-medium">
+                          We found that your skills match this role by <span className="text-primary font-black underline decoration-accent underline-offset-4">{assessment.score}%</span>. 
                           Our system identified <span className="text-primary font-black">{assessment.skills.length} core skills</span> and built a plan to help you reach your goals.
                         </p>
                         
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-6">
-                          <div className="bg-emerald-500/5 border border-emerald-500/10 p-8 rounded-[2rem] flex flex-col justify-between interactive-glow">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4">
+                          <div className="bg-emerald-500/5 border border-emerald-500/10 p-6 rounded-2xl flex flex-col justify-between interactive-glow">
                             <div>
-                              <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center mb-4">
-                                <Trophy className="w-5 h-5 text-emerald-500" />
+                              <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center mb-3">
+                                <Trophy className="w-4 h-4 text-emerald-500" />
                               </div>
-                              <p className="text-[9px] uppercase tracking-[0.3em] text-emerald-500 font-black mb-2">Top Skill</p>
-                              <p className="text-2xl font-black tracking-tight uppercase">
+                              <p className="text-[9px] uppercase tracking-[0.2em] text-emerald-500 font-black mb-1">Top Skill</p>
+                              <p className="text-xl font-black tracking-tight uppercase">
                                 {[...assessment.skills].sort((a,b) => b.proficiency - a.proficiency)[0]?.name}
                               </p>
                             </div>
                           </div>
-                          <div className="bg-amber-500/5 border border-amber-500/10 p-8 rounded-[2rem] flex flex-col justify-between interactive-glow">
+                          <div className="bg-amber-500/5 border border-amber-500/10 p-6 rounded-2xl flex flex-col justify-between interactive-glow">
                             <div>
-                              <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center mb-4">
-                                <AlertCircle className="w-5 h-5 text-amber-500" />
+                              <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center mb-3">
+                                <AlertCircle className="w-4 h-4 text-amber-500" />
                               </div>
-                              <p className="text-[9px] uppercase tracking-[0.3em] text-amber-500 font-black mb-2">Main Skill Gap</p>
-                              <p className="text-2xl font-black tracking-tight uppercase">
+                              <p className="text-[9px] uppercase tracking-[0.2em] text-amber-500 font-black mb-1">Main Skill Gap</p>
+                              <p className="text-xl font-black tracking-tight uppercase">
                                 {[...assessment.skills].sort((a,b) => a.proficiency - b.proficiency)[0]?.name}
                               </p>
                             </div>
@@ -1211,30 +1274,30 @@ export default function App() {
                         </div>
                       </div>
                       
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
-                        <div className="glass border-thin p-10 rounded-[2.5rem] flex items-center gap-6 interactive-glow">
-                          <div className="w-16 h-16 bg-accent/10 border border-accent/20 rounded-2xl flex items-center justify-center shadow-lg">
-                            <Target className="w-8 h-8 text-accent" />
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                        <div className="glass border-thin p-8 rounded-3xl flex items-center gap-5 interactive-glow">
+                          <div className="w-12 h-12 bg-accent/10 border border-accent/20 rounded-xl flex items-center justify-center shadow-lg">
+                            <Target className="w-6 h-6 text-accent" />
                           </div>
                           <div>
-                            <p className="text-[9px] opacity-30 uppercase tracking-[0.3em] font-black mb-1">Live Session</p>
-                            <p className="text-2xl font-black tracking-tight italic">ACTIVE_SESSION</p>
+                            <p className="text-[9px] opacity-30 uppercase tracking-[0.2em] font-black mb-0.5">Live Session</p>
+                            <p className="text-xl font-black tracking-tight italic">ACTIVE_SESSION</p>
                           </div>
                         </div>
-                        <div className="glass border-thin p-10 rounded-[2.5rem] flex items-center gap-6 interactive-glow">
-                          <div className="w-16 h-16 bg-white/5 border border-white/5 rounded-2xl flex items-center justify-center">
-                            <Cpu className="w-8 h-8 opacity-40 text-primary" />
+                        <div className="glass border-thin p-8 rounded-3xl flex items-center gap-5 interactive-glow">
+                          <div className="w-12 h-12 bg-white/5 border border-white/5 rounded-xl flex items-center justify-center">
+                            <Cpu className="w-6 h-6 opacity-40 text-primary" />
                           </div>
                           <div>
-                            <p className="text-[9px] opacity-30 uppercase tracking-[0.3em] font-black mb-1">AI Model</p>
-                            <p className="text-2xl font-black tracking-tight italic">GEMINI_AI</p>
+                            <p className="text-[9px] opacity-30 uppercase tracking-[0.2em] font-black mb-0.5">AI Model</p>
+                            <p className="text-xl font-black tracking-tight italic">GEMINI_AI</p>
                           </div>
                         </div>
                       </div>
                     </div>
                     
-                    <div className="space-y-8">
-                      <div className="glass border-thin p-10 rounded-[3rem] space-y-10 shadow-2xl relative overflow-hidden h-full">
+                    <div className="space-y-6">
+                      <div className="glass border-thin p-8 rounded-3xl space-y-8 shadow-2xl relative overflow-hidden h-full">
                         <div className="space-y-2">
                           <h3 className="text-[10px] uppercase tracking-[0.4em] font-black text-accent mb-6">Next Steps</h3>
                           <div className="w-10 h-0.5 bg-accent/40 mb-10" />
@@ -1282,35 +1345,26 @@ export default function App() {
                     exit={{ opacity: 0, x: -20 }}
                     className="space-y-12"
                   >
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 border-b border-main pb-10">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 border-b border-main pb-8">
                       <div>
-                        <h3 className="text-4xl font-black tracking-tighter uppercase text-primary">Skill Match <span className="text-accent underline decoration-accent/20 underline-offset-8">Gaps</span></h3>
-                        <p className="text-[10px] text-dim font-black uppercase tracking-[0.3em] mt-4 opacity-40">Comparing your resume to job requirements</p>
+                        <h3 className="text-3xl font-black tracking-tighter uppercase text-primary italic">Skill Match <span className="text-accent underline decoration-accent/20 underline-offset-4">Gaps</span></h3>
+                        <p className="text-[10px] text-dim font-black uppercase tracking-[0.3em] mt-3 opacity-40">Comparing your base-skills to role requirements</p>
                       </div>
-                      <div className="flex gap-4 items-center">
-                        <div className="relative w-72 group">
-                          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 opacity-20 group-focus-within:opacity-100 transition-opacity" />
+                      <div className="flex gap-3 items-center">
+                        <div className="relative w-64 group">
+                          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 opacity-20 group-focus-within:opacity-100 transition-opacity" />
                           <input 
                             type="text"
                             value={skillSearchQuery}
                             onChange={(e) => setSkillSearchQuery(e.target.value)}
-                            placeholder="SEARCH SKILLS..."
-                            className="w-full bg-subtle border border-main rounded-2xl pl-12 pr-6 py-4 text-[10px] uppercase tracking-widest focus:outline-none focus:ring-2 focus:ring-accent transition-all placeholder:opacity-20 text-primary"
+                            placeholder="FILTER SKILLS..."
+                            className="w-full bg-subtle border border-main rounded-xl pl-10 pr-5 py-3 text-[10px] uppercase tracking-widest focus:outline-none focus:ring-1 focus:ring-accent transition-all placeholder:opacity-20 text-primary"
                           />
                         </div>
-                        <button 
-                          onClick={() => setSortByGap(!sortByGap)}
-                          className={`text-[9px] uppercase tracking-widest font-black px-6 py-4 rounded-2xl border transition-all flex items-center gap-3 active:scale-95 ${
-                            sortByGap ? 'border-accent text-accent bg-accent/10 shadow-[0_0_20px_rgba(var(--accent-rgb),0.2)]' : 'border-main text-dim hover:text-primary hover:bg-subtle'
-                          }`}
-                        >
-                          <Filter className="w-4 h-4" />
-                          {sortByGap ? 'Showing Skill Gaps' : 'All Skills'}
-                        </button>
                       </div>
                     </div>
 
-                    <div className="space-y-20">
+                    <div className="space-y-12">
                       {(() => {
                         let filtered = [...assessment.skills];
                         if (skillSearchQuery) {
@@ -1323,64 +1377,58 @@ export default function App() {
                         const matchedSkills = filtered.filter(s => s.proficiency >= 70);
 
                         const renderGroup = (skills: any[], title: string, colorClass: string, glowColor: string) => (
-                          <div className="space-y-8">
-                            <div className="flex items-center gap-6">
-                              <div className={`w-2 h-6 rounded-full ${colorClass} shadow-[0_0_15px_${glowColor}]`} />
-                              <h3 className="text-[11px] font-black uppercase tracking-[0.5em] opacity-40">{title}</h3>
+                          <div className="space-y-6">
+                            <div className="flex items-center gap-4">
+                              <div className={`w-1.5 h-5 rounded-full ${colorClass} shadow-[0_0_10px_${glowColor}]`} />
+                              <h3 className="text-[10px] font-black uppercase tracking-[0.3em] opacity-40">{title}</h3>
                               <div className="flex-1 h-px bg-white/5" />
-                              <div className="px-4 py-1.5 rounded-full bg-white/5 border border-white/10">
-                                <span className="text-[10px] font-black uppercase tracking-widest opacity-60">
-                                  {skills.length.toString().padStart(2, '0')} Skills Detected
+                              <div className="px-3 py-1.5 rounded-full bg-white/5 border border-white/10">
+                                <span className="text-[9px] font-black uppercase tracking-widest opacity-60">
+                                  {skills.length.toString().padStart(2, '0')} Nodes
                                 </span>
                               </div>
                             </div>
                             
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                               {skills.map((skill) => (
                                 <motion.div 
                                   key={skill.name}
                                   layout
                                   onClick={() => setExpandedSkill(expandedSkill === skill.name ? null : skill.name)}
-                                  className={`glass border-thin p-8 rounded-[2.5rem] relative overflow-hidden cursor-pointer hover:bg-white/5 transition-all group shadow-xl ${
-                                    expandedSkill === skill.name ? 'ring-2 ring-accent lg:col-span-2' : ''
+                                  className={`glass border-thin p-6 rounded-3xl relative overflow-hidden cursor-pointer hover:bg-white/5 transition-all group shadow-xl ${
+                                    expandedSkill === skill.name ? 'ring-1 ring-accent lg:col-span-2' : ''
                                   }`}
                                 >
-                                  <div className="flex justify-between items-start mb-8">
-                                    <div className="flex flex-col gap-3">
-                                      <h4 className="font-bold text-2xl tracking-tight group-hover:text-accent transition-colors text-primary">{skill.name}</h4>
+                                  <div className="flex justify-between items-start mb-6">
+                                    <div className="flex flex-col gap-2">
+                                      <h4 className="font-bold text-xl tracking-tight group-hover:text-accent transition-colors text-primary italic">{skill.name}</h4>
                                       {skill.isVerified && (
-                                        <span className="flex items-center gap-2 w-fit text-[9px] bg-accent/20 text-accent px-3 py-1.5 rounded-full font-black uppercase tracking-[0.1em] shadow-lg shadow-accent/10 border border-accent/20">
-                                          <BrainCircuit className="w-3.5 h-3.5" />Verified Skill
+                                        <span className="flex items-center gap-2 w-fit text-[8px] bg-accent/20 text-accent px-2.5 py-1 rounded-full font-black uppercase tracking-[0.1em] border border-accent/20">
+                                          <BrainCircuit className="w-3 h-3" />Verified
                                         </span>
                                       )}
                                     </div>
-                                    <div className={`p-4 rounded-2xl ${skill.proficiency >= 70 ? 'bg-emerald-500/10 text-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.1)]' : 'bg-amber-500/10 text-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.1)]'}`}>
-                                      {skill.proficiency >= 70 ? <CheckCircle2 className="w-6 h-6" /> : <AlertCircle className="w-6 h-6" />}
+                                    <div className={`p-3 rounded-xl ${skill.proficiency >= 70 ? 'bg-emerald-500/10 text-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.1)]' : 'bg-amber-500/10 text-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.1)]'}`}>
+                                      {skill.proficiency >= 70 ? <CheckCircle2 className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
                                     </div>
                                   </div>
 
-                                  <div className="space-y-2 text-right mb-8">
-                                    <p className="text-6xl font-black tracking-tighter leading-none">{skill.proficiency}%</p>
-                                    <p className="text-[10px] uppercase tracking-[0.4em] opacity-30 font-black">Proficiency Level</p>
+                                  <div className="space-y-1 text-right mb-6">
+                                    <p className="text-5xl font-black tracking-tighter leading-none">{skill.proficiency}%</p>
+                                    <p className="text-[9px] uppercase tracking-[0.3em] opacity-30 font-black">Accuracy</p>
                                   </div>
 
-                                  <div className="h-2 w-full bg-subtle rounded-full overflow-hidden relative mb-3 p-0.5 border border-main">
+                                  <div className="h-1.5 w-full bg-subtle rounded-full overflow-hidden relative mb-2 p-0.5 border border-main">
                                     <motion.div 
                                       initial={{ width: 0 }}
                                       animate={{ width: `${skill.proficiency}%` }}
-                                      className={`h-full rounded-full ${skill.proficiency >= 70 ? 'bg-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.4)]' : 'bg-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.4)]'}`} 
+                                      className={`h-full rounded-full ${skill.proficiency >= 70 ? 'bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.4)]' : 'bg-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.4)]'}`} 
                                     />
-                                    {skill.industryBenchmark !== undefined && (
-                                      <div 
-                                        className="absolute top-0 w-1.5 h-full bg-accent z-10 shadow-[0_0_15px_var(--accent)]" 
-                                        style={{ left: `${skill.industryBenchmark}%` }} 
-                                      />
-                                    )}
                                   </div>
                                   
-                                  <div className="flex justify-between text-[9px] uppercase font-bold opacity-30 tracking-[0.2em] px-1">
-                                    <span>Core Baseline</span>
-                                    <span>Benchmark_{skill.industryBenchmark}%</span>
+                                  <div className="flex justify-between text-[8px] uppercase font-bold opacity-30 tracking-[0.1em] px-1">
+                                    <span>Baseline</span>
+                                    <span>Bench_{skill.industryBenchmark}%</span>
                                   </div>
 
                                   <AnimatePresence>
@@ -1389,15 +1437,11 @@ export default function App() {
                                         initial={{ opacity: 0, height: 0 }}
                                         animate={{ opacity: 1, height: 'auto' }}
                                         exit={{ opacity: 0, height: 0 }}
-                                        className="pt-10 space-y-8"
+                                        className="pt-8 space-y-6"
                                       >
-                                        <div className="space-y-3 border-l-2 border-accent pl-6">
-                                          <p className="text-[10px] uppercase font-black tracking-[0.3em] text-accent">Feedback</p>
+                                        <div className="space-y-2 border-l-2 border-accent pl-5">
+                                          <p className="text-[9px] uppercase font-black tracking-[0.2em] text-accent">Analysis</p>
                                           <p className="text-sm text-dim leading-relaxed font-medium italic">"{skill.resumeNotes}"</p>
-                                        </div>
-                                        <div className="space-y-3 border-l-2 border-amber-500 pl-6">
-                                          <p className="text-[10px] uppercase font-black tracking-[0.3em] text-amber-500">Skill Gaps</p>
-                                          <p className="text-sm text-dim leading-relaxed font-medium">{skill.gapDescription}</p>
                                         </div>
                                       </motion.div>
                                     )}
@@ -1409,9 +1453,9 @@ export default function App() {
                         );
 
                         return (
-                          <div className="space-y-24">
-                            {(gapSkills.length > 0 || !sortByGap) && renderGroup(gapSkills, "Skills to Improve", "bg-amber-500", "rgba(245,158,11,0.5)")}
-                            {(matchedSkills.length > 0 || !sortByGap) && renderGroup(matchedSkills, "Matched Skills", "bg-emerald-500", "rgba(16,185,129,0.5)")}
+                          <div className="space-y-16">
+                            {gapSkills.length > 0 && renderGroup(gapSkills, "Gaps to Bridge", "bg-amber-500", "rgba(245,158,11,0.5)")}
+                            {matchedSkills.length > 0 && renderGroup(matchedSkills, "Verified Match", "bg-emerald-500", "rgba(16,185,129,0.5)")}
                           </div>
                         );
                       })()}
@@ -1438,7 +1482,20 @@ export default function App() {
                           <h3 className="text-3xl font-black tracking-tighter uppercase italic">Skill <span className="text-accent underline decoration-accent/20 underline-offset-4">Interview</span></h3>
                           <div className="flex items-center gap-3 mt-2">
                             <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
-                            <p className="text-[10px] uppercase tracking-[0.3em] text-accent font-black">AI Interview Active</p>
+                            <div className="flex flex-col gap-1">
+                              <p className="text-[10px] uppercase tracking-[0.3em] text-accent font-black">
+                                AI Interview Active {questionCount > 0 && questionCount <= 5 ? `| Q${questionCount} of 5` : questionCount > 5 ? '| Advanced Mode' : ''}
+                              </p>
+                              {questionCount > 0 && questionCount <= 5 && (
+                                <div className="w-32 h-1 bg-white/5 rounded-full overflow-hidden">
+                                  <motion.div 
+                                    initial={{ width: 0 }}
+                                    animate={{ width: `${(questionCount / 5) * 100}%` }}
+                                    className="h-full bg-accent"
+                                  />
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -1477,8 +1534,38 @@ export default function App() {
                             >
                               <div className={`flex items-center gap-3 mb-5 opacity-40 text-[10px] uppercase font-black tracking-[0.2em] ${msg.role === 'user' ? 'justify-end border-b border-black/10 pb-3' : 'border-b border-main pb-3'}`}>
                                 {msg.role === 'assistant' ? <BrainCircuit className="w-4 h-4 text-accent" /> : <User className="w-4 h-4" />}
-                                {msg.role === 'assistant' ? 'AI Interviewer' : 'Candidate'}
+                                {msg.role === 'assistant' ? 'Talent Hack AI' : 'Candidate'}
                               </div>
+
+                              {msg.impact && msg.role === 'assistant' && (
+                                <motion.div 
+                                  initial={{ opacity: 0, scale: 0.95 }}
+                                  animate={{ opacity: 1, scale: 1 }}
+                                  className="mb-8 p-6 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl flex flex-col gap-4 overflow-hidden relative"
+                                >
+                                  <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500/20" />
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                      <Activity className="w-3.5 h-3.5 text-emerald-500" />
+                                      <span className="text-[9px] uppercase font-black tracking-[0.2em] text-emerald-500">Neural Protocol Impact</span>
+                                    </div>
+                                    <span className="text-[8px] font-bold text-emerald-500/40 uppercase tracking-widest">Live Sync Alpha</span>
+                                  </div>
+
+                                  <div className="flex flex-wrap gap-3">
+                                    {msg.impact.map((imp, idx) => (
+                                      <div key={idx} className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 rounded-lg border border-emerald-500/5">
+                                        <span className="text-[9px] font-bold text-primary">{imp.name}</span>
+                                        <div className="w-1 h-1 rounded-full bg-emerald-500/20" />
+                                        <span className={`text-[9px] font-black ${imp.delta > 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                          {imp.delta > 0 ? '+' : ''}{imp.delta}%
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </motion.div>
+                              )}
+
                               <div className={`markdown-body ${msg.role === 'user' ? 'italic' : ''}`}>
                                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
                                   {msg.content}
@@ -1563,70 +1650,54 @@ export default function App() {
                     exit={{ opacity: 0, x: 40 }}
                     className="space-y-12"
                   >
-                      <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 border-b border-main pb-10">
+                      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-main pb-8">
                         <div>
-                          <h3 className="text-5xl font-black tracking-tighter italic uppercase underline decoration-accent/20 underline-offset-10 text-primary">Learning <span className="text-accent underline decoration-accent underline-offset-10 italic">Plan</span></h3>
-                          <p className="text-[11px] text-dim font-black uppercase tracking-[0.4em] mt-5 italic opacity-40">Your personalized roadmap to bridge identified skill gaps</p>
+                          <h3 className="text-3xl font-black tracking-tighter italic uppercase underline decoration-accent/20 underline-offset-4 text-primary">Learning <span className="text-accent italic underline decoration-accent underline-offset-4">Plan</span></h3>
+                          <p className="text-[10px] text-dim font-black uppercase tracking-[0.3em] mt-3 italic opacity-40">Personalized trajectory to reach full parity</p>
                         </div>
-                        <div className="flex items-center gap-6">
+                        <div className="flex items-center gap-4">
                           <div className="text-right">
-                              <p className="text-[10px] uppercase font-black tracking-widest text-dim mb-1">Personalized Path</p>
-                              <p className="text-2xl font-black tracking-widest uppercase text-primary">M_PLAN_01</p>
+                              <p className="text-[9px] uppercase font-black tracking-widest text-dim mb-0.5">Neural Path</p>
+                              <p className="text-xl font-black tracking-widest uppercase text-primary">M_PLAN_01</p>
                           </div>
-                          <BookOpen className="w-14 h-14 text-accent opacity-20" />
                         </div>
                       </div>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                       {assessment.plan.map((step, idx) => (
                         <motion.div 
-                          initial={{ opacity: 0, y: 30 }}
+                          initial={{ opacity: 0, y: 20 }}
                           animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: idx * 0.1 }}
+                          transition={{ delay: idx * 0.05 }}
                           key={idx} 
-                          className="glass border-thin p-12 rounded-[3.5rem] space-y-8 hover:border-accent/50 transition-all group flex flex-col justify-between shadow-2xl relative overflow-hidden"
+                          className="glass border-thin p-8 rounded-3xl space-y-6 hover:border-accent/50 transition-all group flex flex-col justify-between shadow-2xl relative overflow-hidden"
                         >
-                          <div className="absolute top-0 right-0 p-10 opacity-[0.03] group-hover:opacity-[0.08] transition-all group-hover:scale-110">
-                            <ArrowRight className="w-40 h-40 -mr-16 -mt-16" />
+                          <div className="absolute top-0 right-0 p-8 opacity-[0.03] group-hover:opacity-[0.08] transition-all group-hover:scale-110">
+                            <ArrowRight className="w-32 h-32 -mr-12 -mt-12" />
                           </div>
                           
-                          <div className="space-y-8 relative">
+                          <div className="space-y-6 relative">
                             <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-4">
-                                <span className="text-[12px] font-black font-mono text-accent uppercase tracking-[0.3em]">Phase_0{idx + 1}</span>
-                                <div className="h-4 w-px bg-white/10" />
-                                <span className="text-[10px] text-white/30 font-black uppercase tracking-widest">Protocol Sync</span>
-                              </div>
-                              <div className="flex gap-3">
-                                <span className={`px-4 py-1.5 border rounded-full text-[10px] uppercase font-black tracking-widest shadow-xl ${
-                                    step.cost === 'Free' 
-                                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-500 shadow-emerald-500/10' 
-                                        : 'bg-accent/10 border-accent/30 text-accent shadow-accent/10'
-                                }`}>
-                                  {step.cost === 'Free' ? 'Open_Node' : 'LOCKED_ASSET'}
-                                </span>
+                              <div className="flex items-center gap-3">
+                                <span className="text-[10px] font-black font-mono text-accent uppercase tracking-[0.2em]">Phase_0{idx + 1}</span>
+                                <div className="h-3 w-px bg-white/10" />
+                                <span className="text-[8px] text-white/30 font-black uppercase tracking-widest">Growth Node</span>
                               </div>
                             </div>
                             
-                            <h4 className="text-3xl font-bold tracking-tight group-hover:text-accent transition-all leading-tight italic pr-10">{step.topic}</h4>
+                            <h4 className="text-2xl font-bold tracking-tight group-hover:text-accent transition-all leading-tight italic pr-8">{step.topic}</h4>
                             
-                            <div className="space-y-6">
-                              <div className="flex items-start gap-5 p-6 bg-white/5 border border-white/5 rounded-3xl group-hover:bg-accent/5 group-hover:border-accent/10 transition-all">
-                                <div className="w-14 h-14 bg-black/40 border border-white/5 rounded-2xl flex items-center justify-center flex-shrink-0 group-hover:border-accent/40 shadow-inner">
-                                  <BookOpen className="w-7 h-7 text-accent" />
+                            <div className="space-y-4">
+                              <div className="flex items-start gap-4 p-5 bg-white/5 border border-white/5 rounded-2xl group-hover:bg-accent/5 transition-all">
+                                <div className="w-12 h-12 bg-black/40 border border-white/5 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:border-accent/40 shadow-inner">
+                                  <BookOpen className="w-6 h-6 text-accent" />
                                 </div>
-                                <div className="space-y-1.5">
-                                  <p className="text-base font-black tracking-tight leading-tight">{step.resource}</p>
-                                  <div className="flex items-center gap-2">
-                                    <Clock className="w-3.5 h-3.5 opacity-30" />
-                                    <p className="text-[11px] text-dim uppercase tracking-widest font-black opacity-60 italic">{step.estimate} Neural Allocation</p>
+                                <div className="space-y-1">
+                                  <p className="text-sm font-black tracking-tight leading-tight">{step.resource}</p>
+                                  <div className="flex items-center gap-1.5 opacity-60">
+                                    <Clock className="w-3 h-3" />
+                                    <p className="text-[9px] text-dim uppercase tracking-widest font-bold italic">{step.estimate} Neural Sync</p>
                                   </div>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-6 border-l-4 border-accent/20 pl-8 py-2">
-                                <div className="space-y-2">
-                                  <p className="text-[10px] uppercase font-black tracking-[0.3em] text-accent opacity-50">Pre-requisite_State</p>
-                                  <p className="text-sm text-dim font-bold tracking-tight">{step.prerequisites || 'Direct access authorized'}</p>
                                 </div>
                               </div>
                             </div>
@@ -1636,14 +1707,149 @@ export default function App() {
                             href={step.url} 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="mt-12 flex items-center justify-between p-7 bg-white/5 border border-white/10 rounded-2xl hover:bg-white hover:text-black transition-all group/btn shadow-xl ring-1 ring-white/5"
+                            className="mt-8 flex items-center justify-between p-5 bg-white/5 border border-white/10 rounded-xl hover:bg-white hover:text-black transition-all group/btn shadow-xl"
                           >
-                            <span className="text-[11px] uppercase font-black tracking-[0.4em]">Execute Neural Transfer</span>
-                            <ExternalLink className="w-6 h-6 group-hover/btn:translate-x-1.5 group-hover/btn:-translate-y-1.5 transition-transform" />
+                            <span className="text-[9px] uppercase font-black tracking-[0.3em]">Execute Sync</span>
+                            <ExternalLink className="w-5 h-5 group-hover/btn:translate-x-1 group-hover/btn:-translate-y-1 transition-transform" />
                           </a>
                         </motion.div>
                       ))}
                     </div>
+                  </motion.div>
+                )}
+
+                {activeTab === 'roadmap' && (
+                  <motion.div 
+                    key="roadmap"
+                    initial={{ opacity: 0, x: -40 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 40 }}
+                    className="space-y-12"
+                  >
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 border-b border-main pb-8">
+                      <div className="space-y-2">
+                        <h3 className="text-3xl font-black tracking-tighter italic uppercase underline decoration-accent/20 underline-offset-4 text-primary">Strategic <span className="text-accent underline decoration-accent underline-offset-4 italic">Timeline</span></h3>
+                        <p className="text-[10px] text-dim font-black uppercase tracking-[0.3em] mt-3 italic opacity-40">Personalized daily node progression</p>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 bg-white/5 p-1 rounded-xl border border-white/5">
+                        {['1 week', '2 weeks', '1 month', '3 months'].map((dur) => (
+                          <button
+                            key={dur}
+                            onClick={() => handleGenerateRoadmap(dur)}
+                            disabled={isGeneratingRoadmap}
+                            className={`px-4 py-2 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all relative ${
+                              roadmapDuration === dur 
+                                ? 'text-black' 
+                                : 'text-dim hover:text-primary'
+                            }`}
+                          >
+                            {roadmapDuration === dur && (
+                              <motion.div 
+                                layoutId="activeDuration"
+                                className="absolute inset-0 bg-accent rounded-lg -z-10 shadow-lg"
+                                transition={{ type: "spring", bounce: 0.1, duration: 0.5 }}
+                              />
+                            )}
+                            {dur}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {isGeneratingRoadmap ? (
+                      <div className="flex flex-col items-center justify-center py-32 space-y-6 glass border-thin rounded-3xl">
+                        <div className="relative">
+                          <div className="w-24 h-24 border-4 border-accent/20 border-t-accent rounded-full animate-spin" />
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <Rocket className="w-10 h-10 text-accent animate-pulse" />
+                          </div>
+                        </div>
+                        <div className="text-center space-y-2">
+                          <p className="text-lg font-black uppercase tracking-[0.3em] text-primary italic">Synthesizing Protocol</p>
+                          <p className="text-[9px] text-dim uppercase tracking-widest">Optimizing protocol for {roadmapDuration} bandwidth...</p>
+                        </div>
+                      </div>
+                    ) : roadmap ? (
+                      <div className="grid grid-cols-1 gap-8 relative pb-16">
+                        {/* Vertical Timeline Line */}
+                        <div className="absolute left-6 md:left-1/2 top-0 bottom-0 w-px bg-gradient-to-b from-accent/40 via-accent/5 to-transparent hidden md:block" />
+                        
+                        {roadmap.map((item, idx) => (
+                          <motion.div 
+                            key={idx}
+                            initial={{ opacity: 0, y: 20 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: true }}
+                            transition={{ delay: idx * 0.05 }}
+                            className={`flex flex-col md:flex-row gap-6 md:gap-16 items-start ${idx % 2 === 0 ? 'md:flex-row-reverse' : ''}`}
+                          >
+                            <div className="flex-1 w-full space-y-5">
+                              <div className={`flex flex-col ${idx % 2 === 0 ? 'md:items-end md:text-right' : 'md:items-start'}`}>
+                                <div className={`inline-flex items-center gap-3 mb-4 ${idx % 2 === 0 ? 'md:flex-row-reverse' : ''}`}>
+                                  <h4 className="text-4xl font-black tracking-tighter uppercase text-white/5 leading-none">{item.period}</h4>
+                                  <div className="h-0.5 w-10 bg-accent opacity-20" />
+                                </div>
+                                
+                                <div className="space-y-4 w-full">
+                                  {item.tasks.map((task, tIdx) => (
+                                    <div key={tIdx} className="glass border-thin p-6 rounded-3xl w-full interactive-glow relative overflow-hidden group shadow-xl">
+                                      <div className={`absolute top-0 w-1 h-full bg-accent opacity-20 group-hover:opacity-100 transition-opacity ${idx % 2 === 0 ? 'right-0' : 'left-0'}`} />
+                                      <div className={`flex flex-col gap-3 mb-5 ${idx % 2 === 0 ? 'md:items-end' : ''}`}>
+                                        <div className="flex items-center gap-2">
+                                          <Clock className="w-3 h-3 text-accent opacity-40" />
+                                          <span className="text-[8px] text-accent px-2.5 py-0.5 bg-accent/10 rounded-full font-black uppercase tracking-widest">{task.duration}</span>
+                                        </div>
+                                        <h5 className="font-bold text-xl tracking-tight text-primary leading-tight italic">{task.title}</h5>
+                                      </div>
+                                      <p className="text-sm text-dim leading-relaxed opacity-80">{task.description}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {/* Point on timeline */}
+                            <div className="hidden md:flex items-center justify-center w-12 h-12 rounded-full bg-black border border-accent/20 z-10 shadow-[0_0_20px_rgba(var(--accent-rgb),0.2)] flex-shrink-0 mt-6">
+                              <div className="w-3 h-3 rounded-full bg-accent animate-pulse shadow-[0_0_10px_rgba(var(--accent-rgb),1)]" />
+                            </div>
+                            
+                            <div className="flex-1 hidden md:block" />
+                          </motion.div>
+                        ))}
+
+                        <div className="flex justify-center mt-12">
+                          <button 
+                            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                            className="flex flex-col items-center gap-3 group"
+                          >
+                            <div className="w-12 h-12 rounded-full border border-main flex items-center justify-center group-hover:border-accent transition-colors">
+                              <Rocket className="w-5 h-5 text-dim group-hover:text-accent transition-colors" />
+                            </div>
+                            <span className="text-[9px] font-black uppercase tracking-widest text-dim group-hover:text-primary transition-colors">Mission Control</span>
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center py-40 glass border-thin rounded-[4rem] border-dashed border-main/20">
+                        <div className="w-24 h-24 bg-white/5 rounded-full flex items-center justify-center mb-8">
+                          <Rocket className="w-10 h-10 text-dim opacity-20" />
+                        </div>
+                        <h4 className="text-2xl font-black text-dim uppercase tracking-widest italic">Timeline Offline</h4>
+                        <p className="text-sm text-dim/40 mt-4 max-w-sm text-center leading-relaxed">Select a duration above to synthesize your growth trajectory and daily learning protocol.</p>
+                        
+                        <div className="grid grid-cols-2 gap-4 mt-12">
+                          <div className="p-6 border border-main rounded-3xl text-center space-y-2 opacity-30">
+                            <Clock className="w-6 h-6 mx-auto mb-2" />
+                            <p className="text-[10px] font-black uppercase tracking-widest">Time Optimized</p>
+                          </div>
+                          <div className="p-6 border border-main rounded-3xl text-center space-y-2 opacity-30">
+                            <Target className="w-6 h-6 mx-auto mb-2" />
+                            <p className="text-[10px] font-black uppercase tracking-widest">Gap Focused</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -1653,6 +1859,38 @@ export default function App() {
         )}
       </main>
 
+      <footer className="mt-20 border-t border-main py-12">
+        <div className="max-w-7xl mx-auto px-4 md:px-0">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+            <div className="space-y-6">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-accent/20 flex items-center justify-center border border-accent/20">
+                  <BrainCircuit className="w-5 h-5 text-accent" />
+                </div>
+                <h2 className="text-xl font-black tracking-tight text-primary uppercase italic">Talent <span className="text-accent">Hack</span> AI</h2>
+              </div>
+              <p className="text-sm text-dim max-w-sm leading-relaxed">
+                Empowering candidates through AI-driven skill validation and personalized growth roadmaps.
+              </p>
+            </div>
+            
+            <div className="space-y-4 md:text-right flex flex-col md:items-end">
+              <h4 className="text-[10px] uppercase tracking-[0.2em] font-black text-primary">System Status</h4>
+              <div className="flex items-center gap-3 px-4 py-3 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl w-fit">
+                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                <span className="text-[10px] font-black uppercase tracking-widest text-emerald-500">All Systems Operational</span>
+              </div>
+            </div>
+          </div>
+          
+          <div className="mt-20 pt-8 border-t border-main flex flex-col md:flex-row justify-between items-center gap-6 text-[10px] uppercase tracking-widest text-dim font-bold">
+            <p>© 2026 Talent Hack AI. All rights reserved.</p>
+            <div className="flex items-center gap-8">
+              <span className="opacity-40 select-none">Assessment v0.9.4</span>
+            </div>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

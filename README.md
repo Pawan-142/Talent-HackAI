@@ -178,23 +178,10 @@ The interface follows a **Neural Protocol Theme**:
 * High contrast for clarity
 * Futuristic AI-inspired visuals
 
----
+------------
+ARCHITECTURE
+-------------
 
-## 🔮 Future Enhancements
 
-* 🎥 AI Video Interview Mode
-* 📊 Advanced Analytics Dashboard
-* 🌍 Multi-language Support
-* 🧠 Adaptive Learning Intelligence
 
----
-
-## 👨‍💻 Team
-
-**Talent Hack AI**
-
----
-
-## ⭐ Support
-
-If you found this useful, consider giving it a ⭐ on GitHub!
+<img width="1536" height="1024" alt="image" src="https://github.com/user-attachments/assets/52cd0362-cb47-44a1-a483-4625b6d608e4" />

@@ -1,6 +1,11 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
 const apiKey = (import.meta.env?.VITE_GEMINI_API_KEY as string) || (process.env.GEMINI_API_KEY as string) || "";
+
+if (!apiKey) {
+  console.warn("GEMINI_API_KEY is missing. AI features will not work until you set VITE_GEMINI_API_KEY in your environment.");
+}
+
 const ai = new GoogleGenAI({ apiKey });
 const MODEL_NAME = "gemini-3-flash-preview";
 

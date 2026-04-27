@@ -353,8 +353,22 @@ export default function App() {
         setAssessment(newAssessment);
       }
     } catch (error) {
-      console.error(error);
-      if (user) handleFirestoreError(error, 'create', 'assessments');
+      console.error("Assessment Error:", error);
+      const message = error instanceof Error ? error.message : "Neural Synthesis failed. This usually happens if the AI model is busy or the connection was interrupted.";
+      
+      if (message.includes("API key")) {
+        setAssessmentError("AI Access Denied: The Gemini API key is missing or invalid. If you are the owner, please check your environment variables.");
+      } else {
+        setAssessmentError(message);
+      }
+      
+      if (user) {
+        try {
+          handleFirestoreError(error, 'create', 'assessments');
+        } catch (e) {
+          // Errors already handled by UI state
+        }
+      }
     } finally {
       setIsLoading(false);
       setLoadingStage(null);
@@ -1709,7 +1723,7 @@ export default function App() {
                             rel="noopener noreferrer"
                             className="mt-8 flex items-center justify-between p-5 bg-white/5 border border-white/10 rounded-xl hover:bg-white hover:text-black transition-all group/btn shadow-xl"
                           >
-                            <span className="text-[9px] uppercase font-black tracking-[0.3em]">Execute Sync</span>
+                            <span className="text-[9px] uppercase font-black tracking-[0.3em]">View Course</span>
                             <ExternalLink className="w-5 h-5 group-hover/btn:translate-x-1 group-hover/btn:-translate-y-1 transition-transform" />
                           </a>
                         </motion.div>

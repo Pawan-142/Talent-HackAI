@@ -1,9 +1,11 @@
 import * as pdfjs from 'pdfjs-dist';
 
 export async function extractTextFromPdf(file: File, onProgress?: (percent: number, currentPage: number, totalPages: number) => void): Promise<string> {
-  // Set worker source lazily
+  // Set worker source with a more robust fallback
   if (!pdfjs.GlobalWorkerOptions.workerSrc) {
-    pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+    // Using a known-good CDN pattern for production
+    const workerVersion = pdfjs.version || '4.10.38';
+    pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${workerVersion}/pdf.worker.min.mjs`;
   }
   
   const arrayBuffer = await file.arrayBuffer();

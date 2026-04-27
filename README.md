@@ -1,252 +1,87 @@
+# Talent Hack AI: AI-Powered Skill Assessment & Learning Plan Agent
 
+Talent Hack AI is a sophisticated platform designed to bridge the gap between candidate qualifications and job requirements. Using advanced Gemini AI, it analyzes resumes against job descriptions (JD) to identify skill gaps and provide a personalized learning roadmap.
 
----
+## 🚀 Architecture Overview
 
-# 🚀 Talent Hack AI Agent
+### 1. **Frontend (The Interface)**
+- **Framework**: [React 19](https://react.dev/) with [Vite](https://vitejs.dev/) for high-performance builds.
+- **Styling**: [Tailwind CSS 4](https://tailwindcss.com/) for a modern, utility-first design.
+- **Animations**: [Motion](https://motion.dev/) for smooth, interactive UI transitions.
+- **Icons**: [Lucide React](https://lucide.dev/) for consistent, scalable iconography.
+- **Markdown**: [React Markdown](https://github.com/remarkjs/react-markdown) for rendering AI-generated feedback.
 
-**Talent Hack AI** is an AI-driven skill validation and career intelligence platform that bridges the gap between *what candidates claim* and *what they can actually do*.
+### 2. **Backend & Persistence (The Foundation)**
+- **Auth & Database**: [Firebase](https://firebase.google.com/) provides secure user authentication and real-time data storage via **Firestore**.
+- **Data Model**: Structured around `Assessments` (storing JDs, resume analysis, and skill meshes) and nested `Messages` for the interactive AI chat.
 
----
+### 3. **Intelligence (The Brain)**
+- **AI Model**: Integrated with **Google Gemini API** (`@google/genai`) to perform:
+  - **Skill Analysis**: Extraction of technical and soft skills from resumes.
+  - **Gap Identification**: Comparing resume skills against job requirements.
+  - **Roadmap Generation**: Creating actionable learning paths with topic-specific resources.
 
-## 🧠 Overview
-
-Talent Hack AI acts as an **intelligent career co-pilot**, analyzing user skills against real-world job requirements and generating a **personalized upskilling protocol**.
-
-Instead of static resumes, it delivers:
-
-* ✅ Real skill validation
-* 📊 Gap analysis
-* 🎯 Actionable learning roadmap
-
----
-
-## 🎯 Problem
-
-Resumes are static and unreliable.
-Recruiters struggle to assess:
-
-* Actual skill proficiency
-* Job-role alignment
-* Learning potential
+### 4. **Utility & Processing**
+- **PDF Extraction**: [pdfjs-dist](https://github.com/mozilla/pdf.js) is used to parse text content from uploaded resumes.
+- **PDF Export**: [jsPDF](https://github.com/parallax/jsPDF) enables users to download their personalized learning plans for offline use.
 
 ---
-
-## 💡 Solution
-
-Talent Hack AI introduces a **Neural Protocol Engine** that:
-
-* Evaluates skills dynamically
-* Maps them to job requirements
-* Generates structured improvement plans
-
----
-
-🌐 Live Demo
-
-Experience the application in action:
-
-👉 Talent Hack AI: https://talenthack.netlify.app/
 
 ## ✨ Key Features
 
-### 🤖 AI Skill Validation
-
-Evaluates user capabilities and produces a **Verified Match Score** aligned with industry expectations.
-
-### 🧩 Skill Mesh Visualization
-
-Interactive map of:
-
-* Strengths
-* Weak areas
-* Skill dependencies
-
-### 🧭 Personalized Learning Path
-
-Generates a **step-by-step roadmap** with:
-
-* Milestones
-* Priority skills
-* Learning sequence
-
-### 📄 Job Analysis Engine
-
-Breaks down job descriptions into:
-
-* Required skills
-* Hidden expectations
-* Priority competencies
-
-### 🎓 Direct Course Integration
-
-One-click access to curated learning resources.
-
-### 💬 Interactive AI Assistant
-
-Conversational interface for:
-
-* Skill assessment
-* Guidance
-* Real-time feedback
+- **Neural Skill Mesh**: A visual representation of "Verified Matches" (skills you have) vs. "Gaps to Bridge" (skills you need).
+- **Personalized Learning Plan**: Automatically generated roadmap with curated course links (prefixed with "View Course") and time estimates.
+- **Interactive AI Assistant**: A dedicated chat interface to ask follow-up questions about your assessment.
+- **Resume-JD Alignment**: Upload any Job Description and Resume to get an instant compatibility score.
+- **Secure Cloud Storage**: Your assessments and feedback are stored securely in your private profile.
 
 ---
 
-## 🏗️ System Architecture
-
-```
-User Interface (React + Tailwind)
-        ↓
-Frontend State Management
-        ↓
-API Layer
-        ↓
-AI Engine (Gemini / LLM)
-        ↓
-Skill Analysis Module
-        ↓
-Gap Detection Engine
-        ↓
-Learning Path Generator
-```
-
----
-
-🧮 Scoring Logic
-
-Talent Hack AI evaluates candidate proficiency by comparing resume content with job requirements using a structured, AI-assisted scoring pipeline.
-
-⚙️ How It Works
-Skill Extraction
-Extracts required skills from the Job Description
-Extracts candidate skills from the Resume
-Skill Matching
-Matches overlapping skills between Resume and Job Description
-Identifies missing or weak skills
-Weighted Scoring
-Each skill is evaluated based on:
-📌 Relevance Weight (importance in job description)
-📊 Proficiency Level (based on experience/projects/context)
-🔁 Frequency (how often the skill appears in resume)
-Score Calculation
-
-Final score is computed as:
-
-Skill Score = (Matched Skills / Total Required Skills) × 100
-
-Enhanced with AI-based adjustments:
-
-Context understanding (projects, experience)
-Semantic similarity (not just keyword match)
-Strength vs weakness detection
-
-
-## ⚙️ Tech Stack
-
-### Frontend
-
-* ⚛️ React 18
-* ⚡ Vite
-* 🟦 TypeScript
-* 🎨 Tailwind CSS
-
-### UI / UX
-
-* 🎞️ Framer Motion
-* 🎯 Lucide Icons
-
-### AI Layer (Pluggable)
-
-* Google Gemini API *(or any LLM)*
-
----
-
-## 🔄 Workflow
-
-1. User inputs skills / resume
-2. System analyzes job description
-3. AI evaluates skill proficiency
-4. Gap detection engine identifies missing skills
-5. Neural Protocol generates roadmap
-6. User receives structured learning plan
-
----
-
-## 🚀 Getting Started
+## 🛠️ Getting Started
 
 ### Prerequisites
-
-* Node.js (LTS)
-* npm / yarn
+- Node.js environment
+- Firebase Project credentials
+- Google Gemini API Key
 
 ### Installation
 
-```bash
-git clone <repository-url>
-cd talent-hack-ai
-npm install
-npm run dev
-```
+1. Install dependencies:
+   ```bash
+   npm install
+   ```
 
-### Build
+2. Configure environment variables (refer to `.env.example`).
 
-```bash
-npm run build
-```
-
----
-
-## 🔐 Environment Variables
-
-Create a `.env` file:
-
-```
-VITE_GEMINI_API_KEY=your_api_key
-```
+3. Start the development server:
+   ```bash
+   npm run dev
+   ```
 
 ---
 
-## 🎨 Design Philosophy
+## 🌐 Deployment (Netlify / Vercel)
 
-The interface follows a **Neural Protocol Theme**:
+When deploying to external platforms like Netlify or Vercel, ensure you follow these steps:
 
-* Dark UI with neon gradients
-* High contrast for clarity
-* Futuristic AI-inspired visuals
+1. **Environment Variables**: You MUST set the following in your deployment dashboard:
+   - `VITE_GEMINI_API_KEY`: Your Google Gemini API Key.
+   - Any Firebase keys if you are using a custom Firebase project.
 
-------------
-ARCHITECTURE
--------------
+2. **Build Settings**:
+   - **Build Command**: `npm run build`
+   - **Publish Directory**: `dist`
 
+3. **PDF Support**: The application uses `pdfjs-dist` to process resumes. I have updated the worker configuration to use a CDN-based fallback (`cdnjs`) to ensure PDF parsing works reliably in production environments without complex local worker setup.
 
+4. **Firebase Redirects**: If using Firebase Auth popups, ensure you've added your deployment URL to the "Authorized domains" list in the Firebase Console (Authentication > Settings).
 
-<img width="1536" height="1024" alt="image" src="https://github.com/user-attachments/assets/52cd0362-cb47-44a1-a483-4625b6d608e4" />
+---
 
+## 📂 Project Structure
 
-
------------
-IMAGES OF PROJECT
------------
-
-
-
-<img width="1913" height="898" alt="image" src="https://github.com/user-attachments/assets/f18bd165-8b62-4279-a787-d831dddae931" />
-<br>
-
-<img width="1915" height="872" alt="image" src="https://github.com/user-attachments/assets/020aaa90-783a-4603-9901-8566ef9bab86" />
-<br>
-
-<img width="1912" height="901" alt="image" src="https://github.com/user-attachments/assets/33ed4f4a-bcc0-423b-9a60-99b53ba609f0" />
-<br>
-<img width="1907" height="896" alt="image" src="https://github.com/user-attachments/assets/1abbd750-c0a1-49c5-aceb-7696e256de8a" />
-<br>
-<img width="1902" height="891" alt="image" src="https://github.com/user-attachments/assets/c9eacc0a-e340-4d79-8c00-39a4bd06a57e" />
-<br>
-<img width="1911" height="902" alt="image" src="https://github.com/user-attachments/assets/972c0f9c-443f-4251-ba83-a73a5467d9b2" />
-<br>
-<img width="1888" height="797" alt="image" src="https://github.com/user-attachments/assets/f299e77e-312b-404e-bd34-372de671f3c0" />
-<br>
-<img width="1867" height="862" alt="image" src="https://github.com/user-attachments/assets/f94eb306-ca29-40b7-b0e8-a44eb146ff65" />
-<br>
-<img width="1910" height="890" alt="image" src="https://github.com/user-attachments/assets/55109f55-0a61-4af3-a0f6-5daf6926d182" />
-<br>
-
+- `src/App.tsx`: The heart of the application, managing state, AI interactions, and the main layout.
+- `src/lib/`: Utility functions for Firebase and AI service initialisation.
+- `firebase-blueprint.json`: Defines the Firestore data architecture.
+- `firestore.rules`: Secure access control for user data.
+- `metadata.json`: Application capabilities and platform permissions.

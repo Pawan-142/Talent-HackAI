@@ -76,6 +76,7 @@ export default function App() {
   const [isTyping, setIsTyping] = useState(false);
   const [assessmentError, setAssessmentError] = useState<string | null>(null);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  const [guideTab, setGuideTab] = useState<'steps' | 'limits'>('steps');
 
   useEffect(() => {
     if (theme === 'light') {
@@ -152,7 +153,7 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [loadingStage, setLoadingStage] = useState<string | null>(null);
   
-  type Tab = 'overview' | 'skills' | 'interview' | 'learning' | 'roadmap';
+  type Tab = 'overview' | 'skills' | 'interview' | 'learning' | 'roadmap' | 'guide';
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   
   const [roadmap, setRoadmap] = useState<RoadmapItem[] | null>(null);
@@ -839,6 +840,123 @@ export default function App() {
                   </div>
                 </div>
               </div>
+
+              {/* Operations Manual & Request Limit Panel */}
+              <div className="glass border border-accent/25 rounded-[1.5rem] p-6 relative overflow-hidden bg-accent/[0.01] hover:border-accent/40 shadow-xl transition-all">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-accent/5 blur-2xl pointer-events-none" />
+                
+                <div className="flex items-center justify-between mb-5 border-b border-white/5 pb-4">
+                  <div className="flex items-center gap-2">
+                    <Command className="w-4 h-4 text-accent animate-pulse" />
+                    <span className="text-[11px] font-black uppercase tracking-[0.2em] text-primary">System Operations Manual</span>
+                  </div>
+                  <div className="flex gap-1.5 bg-white/5 p-0.5 rounded-lg border border-white/5">
+                    <button
+                      onClick={() => setGuideTab('steps')}
+                      className={`px-3 py-1.5 rounded-md text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                        guideTab === 'steps' ? 'bg-accent text-black font-extrabold' : 'text-dim hover:text-primary'
+                      }`}
+                    >
+                      Step-by-Step
+                    </button>
+                    <button
+                      onClick={() => setGuideTab('limits')}
+                      className={`px-3 py-1.5 rounded-md text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                        guideTab === 'limits' ? 'bg-accent text-black font-extrabold' : 'text-dim hover:text-primary'
+                      }`}
+                    >
+                      System Quotas
+                    </button>
+                  </div>
+                </div>
+
+                <AnimatePresence mode="wait">
+                  {guideTab === 'steps' ? (
+                    <motion.div
+                      key="steps-manual"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="space-y-4 text-xs font-semibold"
+                    >
+                      <div className="flex gap-3">
+                        <div className="w-5 h-5 rounded-full bg-accent text-black flex items-center justify-center font-black text-[9px] mt-0.5 flex-shrink-0">
+                          1
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-primary uppercase tracking-wide font-bold text-[10px]">Provide the Job Description</p>
+                          <p className="text-dim text-[11px] leading-relaxed">Paste the text of your target job description or upload a PDF under <strong className="text-primary uppercase tracking-wider">Step 1</strong>.</p>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-3">
+                        <div className="w-5 h-5 rounded-full bg-accent text-black flex items-center justify-center font-black text-[9px] mt-0.5 flex-shrink-0">
+                          2
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-primary uppercase tracking-wide font-bold text-[10px]">Upload Your Professional Resume</p>
+                          <p className="text-dim text-[11px] leading-relaxed">Paste your resume content or upload a PDF under <strong className="text-primary uppercase tracking-wider">Step 2</strong>.</p>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-3">
+                        <div className="w-5 h-5 rounded-full bg-accent text-black flex items-center justify-center font-black text-[9px] mt-0.5 flex-shrink-0">
+                          3
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-primary uppercase tracking-wide font-bold text-[10px]">Begin Custom Brain Synthesis</p>
+                          <p className="text-dim text-[11px] leading-relaxed">Click the <strong className="text-primary uppercase tracking-wider">Start Skill Assessment</strong> button to trigger the comparison matrix.</p>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-3">
+                        <div className="w-5 h-5 rounded-full bg-accent text-black flex items-center justify-center font-black text-[9px] mt-0.5 flex-shrink-0">
+                          4
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-primary uppercase tracking-wide font-bold text-[10px]">Inspect Gaps & Interview</p>
+                          <p className="text-dim text-[11px] leading-relaxed">Review your matched skills and chat with the agent to verify your actual expertise and build out courses.</p>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key="limits-manual"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="space-y-4 text-xs font-semibold"
+                    >
+                      <div className="p-3 bg-amber-500/10 border border-amber-500/25 rounded-xl space-y-1.5">
+                        <div className="flex items-center gap-2 text-amber-400">
+                          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                          <p className="font-bold text-[10px] uppercase tracking-wider">Netlify & External Hosting Quotas</p>
+                        </div>
+                        <p className="text-[11px] text-amber-200 leading-relaxed">
+                          When successfully deployed on public platforms like Netlify, the application depends on shared Gemini API keys. If too many users generate assessments at once, the app will hit a request limit and may pause or show offline screens.
+                        </p>
+                      </div>
+
+                      <div className="space-y-2 text-[11px] text-dim leading-relaxed">
+                        <p>
+                          <strong className="text-primary">How to ensure it works perfectly:</strong>
+                        </p>
+                        <ul className="list-disc pl-4 space-y-1.5">
+                          <li>
+                            <span className="text-primary font-bold">Wait for Quota Reset:</span> Once the shared minuto-hourly rate limit resets, the app will work all in a proper, fully operational way automatically.
+                          </li>
+                          <li>
+                            <span className="text-primary font-bold">Configure Personal API Key:</span> To secure permanent unlimited access, set the <code className="bg-white/5 text-accent px-1.5 py-0.5 rounded text-[10px]">VITE_GEMINI_API_KEY</code> within your Netlify or deployment settings dashboard.
+                          </li>
+                          <li>
+                            <span className="text-primary font-bold">File Specifications:</span> Keep uploads under <code className="bg-white/5 text-primary px-1.5 py-0.5 rounded text-[10px]">5MB</code> to prevent timeouts during PDF text synthesis.
+                          </li>
+                        </ul>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
               
               {!user && (
                 <button 
@@ -1193,7 +1311,8 @@ export default function App() {
                     { id: 'skills', label: 'Skill Mesh', icon: BrainCircuit },
                     { id: 'interview', label: 'Interview', icon: MessageSquareCode },
                     { id: 'learning', label: 'Learning Path', icon: BookOpen },
-                    { id: 'roadmap', label: 'Growth Roadmap', icon: Rocket }
+                    { id: 'roadmap', label: 'Growth Roadmap', icon: Rocket },
+                    { id: 'guide', label: 'System Guide', icon: Command }
                   ].map(tab => (
                     <button
                       key={tab.id}
@@ -1864,6 +1983,106 @@ export default function App() {
                         </div>
                       </div>
                     )}
+                  </motion.div>
+                )}
+
+                {activeTab === 'guide' && (
+                  <motion.div
+                    key="guide"
+                    initial={{ opacity: 0, scale: 0.98 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.98 }}
+                    className="grid grid-cols-1 lg:grid-cols-2 gap-8"
+                  >
+                    <div className="glass border border-accent/25 rounded-3xl p-8 relative overflow-hidden bg-accent/[0.01]">
+                      <div className="flex items-center gap-3 mb-6 border-b border-white/5 pb-4">
+                        <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
+                          <Command className="text-accent w-5 h-5 animate-pulse" />
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-black uppercase tracking-wider text-primary">Pre-Assessment Guide</h3>
+                          <p className="text-[10px] text-dim uppercase tracking-[0.2em] font-black">System Operations Steps</p>
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-6 text-sm font-semibold">
+                        <div className="flex gap-4">
+                          <div className="w-7 h-7 rounded-full bg-accent text-black flex items-center justify-center font-black text-xs flex-shrink-0">
+                            1
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-primary text-xs uppercase tracking-wide font-black">Provide the Job Description</p>
+                            <p className="text-dim text-xs leading-relaxed font-normal">Paste the text of your target job description or upload a PDF under <strong>Step 1</strong>.</p>
+                          </div>
+                        </div>
+
+                        <div className="flex gap-4">
+                          <div className="w-7 h-7 rounded-full bg-accent text-black flex items-center justify-center font-black text-xs flex-shrink-0">
+                            2
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-primary text-xs uppercase tracking-wide font-black">Upload Your Professional Resume</p>
+                            <p className="text-dim text-xs leading-relaxed font-normal">Paste your resume content or upload a PDF under <strong>Step 2</strong>.</p>
+                          </div>
+                        </div>
+
+                        <div className="flex gap-4">
+                          <div className="w-7 h-7 rounded-full bg-accent text-black flex items-center justify-center font-black text-xs flex-shrink-0">
+                            3
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-primary text-xs uppercase tracking-wide font-black">Begin Custom Brain Synthesis</p>
+                            <p className="text-dim text-xs leading-relaxed font-normal">Click the <strong>Start Skill Assessment</strong> button to trigger the comparison matrix.</p>
+                          </div>
+                        </div>
+
+                        <div className="flex gap-4">
+                          <div className="w-7 h-7 rounded-full bg-accent text-black flex items-center justify-center font-black text-xs flex-shrink-0">
+                            4
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-primary text-xs uppercase tracking-wide font-black">Inspect Gaps & Interview</p>
+                            <p className="text-dim text-xs leading-relaxed font-normal">Review your matched skills and chat with the agent to verify your actual expertise and build out courses.</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="glass border border-amber-500/20 rounded-3xl p-8 relative overflow-hidden bg-amber-500/[0.01]">
+                      <div className="flex items-center gap-3 mb-6 border-b border-white/5 pb-4">
+                        <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
+                          <AlertCircle className="text-amber-500 w-5 h-5 flex-shrink-0" />
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-black uppercase tracking-wider text-primary">System Limits & Quotas</h3>
+                          <p className="text-[10px] text-dim uppercase tracking-[0.2em] font-black">Hosting Parameters</p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-6 text-sm">
+                        <div className="p-4 bg-amber-500/10 border border-amber-500/25 rounded-2xl">
+                          <p className="font-bold text-xs uppercase tracking-wider text-amber-400 mb-1">Operational Limitations</p>
+                          <p className="text-xs text-amber-200/85 leading-relaxed font-semibold">
+                            When successfully deployed on public platforms like Netlify, the application depends on shared Gemini API keys. If too many users generate assessments at once, the app will hit a request limit and may pause or show offline screens.
+                          </p>
+                        </div>
+
+                        <div className="space-y-3 font-semibold text-dim">
+                          <p className="text-primary text-xs uppercase tracking-wider font-black">How to ensure optimal performance:</p>
+                          <ul className="list-disc pl-5 space-y-2 text-xs font-normal">
+                            <li>
+                              <strong className="text-primary font-bold">Wait for Quota Reset:</strong> Once the shared minuto-hourly rate limit resets, the app will work all in a proper, fully operational way automatically.
+                            </li>
+                            <li>
+                              <strong className="text-primary font-bold">Configure Personal API Key:</strong> To secure permanent unlimited access, set the <code className="bg-white/5 text-accent px-1.5 py-0.5 rounded text-[11px]">VITE_GEMINI_API_KEY</code> within your Netlify or deployment settings dashboard.
+                            </li>
+                            <li>
+                              <strong className="text-primary font-bold">File Specifications:</strong> Keep uploads under <code className="bg-white/5 text-primary px-1.5 py-0.5 rounded text-[11px]">5MB</code> to prevent timeouts during PDF text synthesis.
+                            </li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>

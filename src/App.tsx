@@ -677,7 +677,43 @@ export default function App() {
           </div>
         </div>
         
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-2 md:gap-4 flex-wrap justify-end">
+          <button
+            onClick={() => {
+              if (assessment) {
+                setActiveTab('guide');
+              }
+              setGuideTab('steps');
+              setTimeout(() => {
+                const element = document.getElementById('system-manual-panel') || document.getElementById('assessment-tabs-container');
+                element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }, 100);
+            }}
+            className="px-3 py-1.5 glass border-thin border-accent/20 rounded-lg hover:border-accent hover:text-accent transition-all text-[9.5px] font-black uppercase tracking-[0.15em] flex items-center gap-1.5 cursor-pointer"
+            title="View Step-by-Step Guide"
+          >
+            <Command className="w-3.5 h-3.5 text-accent animate-pulse" />
+            <span className="hidden sm:inline">System Guide</span>
+          </button>
+
+          <button
+            onClick={() => {
+              if (assessment) {
+                setActiveTab('guide');
+              }
+              setGuideTab('limits');
+              setTimeout(() => {
+                const element = document.getElementById('system-manual-panel') || document.getElementById('assessment-tabs-container');
+                element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }, 100);
+            }}
+            className="px-3 py-1.5 glass border-thin border-amber-500/20 rounded-lg hover:border-amber-500 hover:text-amber-400 transition-all text-[9.5px] font-black uppercase tracking-[0.15em] flex items-center gap-1.5 cursor-pointer"
+            title="View System Limits & Quotas"
+          >
+            <AlertCircle className="w-3.5 h-3.5 text-amber-500" />
+            <span className="hidden sm:inline">System Limits</span>
+          </button>
+
           <button 
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
             className="p-2 glass border-thin rounded-lg hover:text-accent transition-colors"
@@ -842,7 +878,7 @@ export default function App() {
               </div>
 
               {/* Operations Manual & Request Limit Panel */}
-              <div className="glass border border-accent/25 rounded-[1.5rem] p-6 relative overflow-hidden bg-accent/[0.01] hover:border-accent/40 shadow-xl transition-all">
+              <div id="system-manual-panel" className="glass border border-accent/25 rounded-[1.5rem] p-6 relative overflow-hidden bg-accent/[0.01] hover:border-accent/40 shadow-xl transition-all">
                 <div className="absolute top-0 right-0 w-24 h-24 bg-accent/5 blur-2xl pointer-events-none" />
                 
                 <div className="flex items-center justify-between mb-5 border-b border-white/5 pb-4">
@@ -1258,7 +1294,7 @@ export default function App() {
             </div>
           </motion.div>
         ) : (
-          <div className="space-y-8 relative z-10 py-4 px-4">
+          <div id="assessment-tabs-container" className="space-y-8 relative z-10 py-4 px-4">
             {/* Copy Toast */}
             <AnimatePresence>
               {showCopyToast && (
